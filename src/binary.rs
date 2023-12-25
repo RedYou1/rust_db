@@ -8,7 +8,7 @@ impl Binary for char {
     fn from_bin(data: &[u8]) -> Self {
         data[0] as char
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![*self as u8]
     }
     fn bin_size() -> usize {
@@ -20,7 +20,7 @@ impl Binary for bool {
     fn from_bin(data: &[u8]) -> Self {
         data[0] != 0
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![*self as u8]
     }
     fn bin_size() -> usize {
@@ -32,7 +32,7 @@ impl Binary for u8 {
     fn from_bin(data: &[u8]) -> Self {
         data[0]
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![*self]
     }
     fn bin_size() -> usize {
@@ -44,7 +44,7 @@ impl Binary for u16 {
     fn from_bin(data: &[u8]) -> Self {
         ((data[0] as u16) << 8) + (data[1] as u16)
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![(*self >> 8) as u8, *self as u8]
     }
     fn bin_size() -> usize {
@@ -59,7 +59,7 @@ impl Binary for u32 {
             + ((data[2] as u32) << 8)
             + (data[3] as u32)
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![
             (*self >> 24) as u8,
             (*self >> 16) as u8,
@@ -83,7 +83,7 @@ impl Binary for u64 {
             + ((data[6] as u64) << 8)
             + (data[7] as u64)
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![
             (*self >> 56) as u8,
             (*self >> 48) as u8,
@@ -119,7 +119,7 @@ impl Binary for u128 {
             + ((data[14] as u128) << 8)
             + (data[15] as u128)
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![
             (*self >> 120) as u8,
             (*self >> 112) as u8,
@@ -148,7 +148,7 @@ impl Binary for i8 {
     fn from_bin(data: &[u8]) -> Self {
         data[0] as i8
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![*self as u8]
     }
     fn bin_size() -> usize {
@@ -160,7 +160,7 @@ impl Binary for i16 {
     fn from_bin(data: &[u8]) -> Self {
         (((data[0] as u16) << 8) + (data[1] as u16)) as i16
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![(*self >> 8) as u8, *self as u8]
     }
     fn bin_size() -> usize {
@@ -175,7 +175,7 @@ impl Binary for i32 {
             + ((data[2] as u32) << 8)
             + (data[3] as u32)) as i32
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![
             (*self >> 24) as u8,
             (*self >> 16) as u8,
@@ -199,7 +199,7 @@ impl Binary for i64 {
             + ((data[6] as u64) << 8)
             + (data[7] as u64)) as i64
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![
             (*self >> 56) as u8,
             (*self >> 48) as u8,
@@ -235,7 +235,7 @@ impl Binary for i128 {
             + ((data[14] as u128) << 8)
             + (data[15] as u128)) as i128
     }
-    fn into_bin(self: &Self) -> Vec<u8> {
+    fn into_bin(&self) -> Vec<u8> {
         vec![
             (*self >> 120) as u8,
             (*self >> 112) as u8,
@@ -257,5 +257,26 @@ impl Binary for i128 {
     }
     fn bin_size() -> usize {
         16
+    }
+}
+
+impl<T, const LEN: usize> Binary for [T; LEN]
+where
+    T: Binary + Copy + Default,
+{
+    fn from_bin(data: &[u8]) -> Self {
+        let mut result: [T; LEN] = [T::default(); LEN];
+        for (i, item) in result.iter_mut().enumerate() {
+            *item = T::from_bin(&data[i * T::bin_size()..]);
+        }
+        result
+    }
+
+    fn into_bin(&self) -> Vec<u8> {
+        self.into_iter().flat_map(|item| item.into_bin()).collect()
+    }
+
+    fn bin_size() -> usize {
+        T::bin_size() * LEN
     }
 }
