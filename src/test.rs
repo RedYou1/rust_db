@@ -1,9 +1,6 @@
 use std::{fs::File, io::Write};
 
-use crate::binary::Binary;
-use rust_db::Binary;
-
-use crate::table::Table;
+use crate::table::{Binary, Table};
 
 #[derive(Debug, Clone, Binary)]
 struct Test {

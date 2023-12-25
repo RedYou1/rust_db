@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read, os::windows::fs::FileExt};
 
-use crate::binary::Binary;
+pub use crate::binary::Binary;
 
 pub struct Table<'a, Row>
 where

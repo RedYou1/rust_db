@@ -3,10 +3,7 @@ mod table;
 #[cfg(test)]
 mod test;
 
-use binary::Binary;
-use rust_db::Binary;
-
-use crate::table::Table;
+use table::{Binary, Table};
 
 #[derive(Debug, Clone, Binary)]
 struct Row {

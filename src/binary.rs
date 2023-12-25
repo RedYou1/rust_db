@@ -1,3 +1,5 @@
+pub use rust_db::Binary;
+
 pub trait Binary {
     fn from_bin(data: &[u8]) -> Self;
     fn into_bin(&self) -> Vec<u8>;
