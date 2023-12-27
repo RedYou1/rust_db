@@ -1,18 +1,19 @@
 use std::{
-    fs::{read_dir, remove_file, File},
+    fmt::Display,
+    fs::{remove_file, File},
     io::{Read, Write},
-    path::Path,
 };
 
 use crate::table::Binary;
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DynanicBinary<T>
+pub struct DynanicBinary<ID, DATA>
 where
-    T: AsBinary,
+    ID: Binary + Display,
+    DATA: AsBinary,
 {
-    id: u64,
-    data: T,
+    id: ID,
+    data: DATA,
 }
 
 pub trait AsBinary {
@@ -20,51 +21,38 @@ pub trait AsBinary {
     fn into_bin(&self, path: &str) -> Vec<u8>;
 }
 
-fn get_path(path: &str) -> u64 {
-    for id in (read_dir(path).unwrap().count() as u64).. {
-        let path = format!("{path}/{id}.bin");
-        let path = path.as_str();
-        if !Path::new(path).exists() {
-            File::create(path).unwrap();
-            return id;
-        }
-    }
-    panic!("get_path out of id");
-}
-
-impl<T> DynanicBinary<T>
+impl<ID, DATA> DynanicBinary<ID, DATA>
 where
-    T: AsBinary,
+    ID: Binary + Display,
+    DATA: AsBinary,
 {
-    pub fn new(path: &str, data: T) -> Self {
-        DynanicBinary {
-            id: get_path(path),
-            data: data,
-        }
+    pub fn new(id: ID, data: DATA) -> Self {
+        DynanicBinary { id: id, data: data }
     }
 
-    pub fn data(&self) -> &T {
+    pub fn data(&self) -> &DATA {
         &self.data
     }
 
-    pub fn mut_data(&mut self) -> &mut T {
+    pub fn mut_data(&mut self) -> &mut DATA {
         &mut self.data
     }
 }
 
-impl<T> Binary for DynanicBinary<T>
+impl<ID, DATA> Binary for DynanicBinary<ID, DATA>
 where
-    T: AsBinary,
+    ID: Binary + Display,
+    DATA: AsBinary,
 {
     fn from_bin(data: &[u8], path: &str) -> Self {
-        let id = u64::from_bin(data, path);
+        let id = ID::from_bin(data, path);
 
         let mut file = File::open(format!("{path}/{id}.bin")).unwrap();
         let mut result = vec![0 as u8; file.metadata().unwrap().len() as usize];
         file.read(&mut result).unwrap();
         DynanicBinary {
             id: id,
-            data: T::from_bin(result, path),
+            data: DATA::from_bin(result, path),
         }
     }
 
@@ -77,7 +65,7 @@ where
     }
 
     fn bin_size() -> usize {
-        u64::bin_size()
+        ID::bin_size()
     }
 
     fn delete(&self, path: &str) {

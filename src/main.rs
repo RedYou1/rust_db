@@ -9,7 +9,7 @@ use table::{Binary, Table};
 
 #[derive(Debug, Clone, PartialEq, Binary)]
 struct Row {
-    name: DynanicBinary<String>,
+    name: DynanicBinary<u8, String>,
     a1: u8,
     b1: u16,
     c1: u32,
@@ -26,7 +26,7 @@ struct Row {
 
 fn gen(a: u8, path: &str) -> Row {
     Row {
-        name: DynanicBinary::new(path, a.to_string()),
+        name: DynanicBinary::new(a, a.to_string()),
         a1: u8::from_bin(&[a], path),
         b1: u16::from_bin(&[a, a], path),
         c1: u32::from_bin(&[a, a, a, a], path),

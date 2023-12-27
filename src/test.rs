@@ -9,7 +9,7 @@ use crate::{
 struct Test {
     a: [u32; 3],
     b: i128,
-    c: DynanicBinary<String>,
+    c: DynanicBinary<u8, String>,
 }
 
 #[test]
@@ -30,12 +30,12 @@ fn test1() {
     let mut test1 = Test {
         a: [5, 255, 1000000],
         b: 1000000,
-        c: DynanicBinary::new(TABLE_PATH, String::from("Salut")),
+        c: DynanicBinary::new(0, String::from("Salut")),
     };
     let test2 = Test {
         a: [10000, 0, 5],
         b: -1,
-        c: DynanicBinary::new(TABLE_PATH, String::from("Wow")),
+        c: DynanicBinary::new(1, String::from("Wow")),
     };
 
     assert_eq!("Salut", test1.c.data());
