@@ -1,12 +1,15 @@
 mod binary;
+mod dyn_binary;
 mod table;
 #[cfg(test)]
 mod test;
 
+use dyn_binary::DynanicBinary;
 use table::{Binary, Table};
 
-#[derive(Debug, Clone, Binary)]
+#[derive(Debug, Clone, PartialEq, Binary)]
 struct Row {
+    name: DynanicBinary<String>,
     a1: u8,
     b1: u16,
     c1: u32,
@@ -21,50 +24,55 @@ struct Row {
     q2: char,
 }
 
-fn gen(a: u8) -> Row {
+fn gen(a: u8, path: &str) -> Row {
     Row {
-        a1: u8::from_bin(&[a]),
-        b1: u16::from_bin(&[a, a]),
-        c1: u32::from_bin(&[a, a, a, a]),
-        d1: u64::from_bin(&[a, a, a, a, a, a, a, a]),
-        e1: u128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a]),
-        a2: i8::from_bin(&[a]),
-        b2: i16::from_bin(&[a, a]),
-        c2: i32::from_bin(&[a, a, a, a]),
-        d2: i64::from_bin(&[a, a, a, a, a, a, a, a]),
-        e2: i128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a]),
+        name: DynanicBinary::new(path, a.to_string()),
+        a1: u8::from_bin(&[a], path),
+        b1: u16::from_bin(&[a, a], path),
+        c1: u32::from_bin(&[a, a, a, a], path),
+        d1: u64::from_bin(&[a, a, a, a, a, a, a, a], path),
+        e1: u128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path),
+        a2: i8::from_bin(&[a], path),
+        b2: i16::from_bin(&[a, a], path),
+        c2: i32::from_bin(&[a, a, a, a], path),
+        d2: i64::from_bin(&[a, a, a, a, a, a, a, a], path),
+        e2: i128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path),
         q1: [
-            bool::from_bin(&[a]),
-            bool::from_bin(&[a]),
-            bool::from_bin(&[a]),
-            bool::from_bin(&[a]),
-            bool::from_bin(&[a]),
-            bool::from_bin(&[a]),
-            bool::from_bin(&[a]),
-            bool::from_bin(&[a]),
+            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path),
         ],
-        q2: char::from_bin(&[a]),
+        q2: char::from_bin(&[a], path),
     }
 }
 
 fn main() {
-    let mut table = Table::<Row>::new("test/1.bin").unwrap();
-    assert_eq!("test/1.bin", table.path());
+    let mut table = Table::<Row>::new("test/1").unwrap();
+    assert_eq!("test/1", table.path());
 
     while table.len() > 0 {
         println!("1: Removing first row {}", table.len());
         table.remove(0).unwrap();
     }
+    assert_eq!(1, table.nb_files());
 
     for i in 0..=5 {
-        let row = gen(i * 51);
+        let mut row = gen(i * 51, table.path());
+        assert_eq!(&(i * 51).to_string(), row.name.data());
+        *row.name.mut_data() = format!("WOW{}", i * 51);
+        assert_eq!(&format!("WOW{}", i * 51), row.name.data());
         table.insert(0, row.clone()).unwrap();
-        assert_eq!(row.into_bin(), table.get(0).unwrap().into_bin());
+        assert_eq!(row, *table.get(0).unwrap());
     }
 
     println!("table1 size {}", table.len());
 
-    let mut table2 = Table::<Row>::new("test/2.bin").unwrap();
+    let mut table2 = Table::<Row>::new("test/2").unwrap();
 
     while table2.len() > 0 {
         println!("2: Removing first row {}", table2.len());
@@ -77,18 +85,7 @@ fn main() {
 
     println!("table2 size {}", table.len());
 
-    assert_eq!(
-        table
-            .datas()
-            .into_iter()
-            .flat_map(|row| row.into_bin())
-            .collect::<Vec<u8>>(),
-        table
-            .datas()
-            .into_iter()
-            .flat_map(|row| row.into_bin())
-            .collect::<Vec<u8>>()
-    );
+    assert_eq!(table.datas(), table.datas());
 
     println!("Success");
 }
