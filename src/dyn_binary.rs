@@ -1,5 +1,5 @@
 use std::{
-    fs::{remove_file, File},
+    fs::{read_dir, remove_file, File},
     io::{Read, Write},
     path::Path,
 };
@@ -16,12 +16,12 @@ where
 }
 
 pub trait AsBinary {
-    fn from_bin(data: Vec<u8>) -> Self;
-    fn into_bin(&self) -> Vec<u8>;
+    fn from_bin(data: Vec<u8>, path: &str) -> Self;
+    fn into_bin(&self, path: &str) -> Vec<u8>;
 }
 
 fn get_path(path: &str) -> u64 {
-    for id in 0.. {
+    for id in (read_dir(path).unwrap().count() as u64).. {
         let path = format!("{path}/{id}.bin");
         let path = path.as_str();
         if !Path::new(path).exists() {
@@ -64,13 +64,13 @@ where
         file.read(&mut result).unwrap();
         DynanicBinary {
             id: id,
-            data: T::from_bin(result),
+            data: T::from_bin(result, path),
         }
     }
 
     fn into_bin(&self, path: &str) -> Vec<u8> {
         let mut file = File::create(format!("{path}/{}.bin", self.id)).unwrap();
-        file.write_all(&self.data.into_bin()).unwrap();
+        file.write_all(&self.data.into_bin(path)).unwrap();
         file.sync_all().unwrap();
 
         self.id.into_bin(path)
@@ -86,11 +86,28 @@ where
 }
 
 impl AsBinary for String {
-    fn from_bin(data: Vec<u8>) -> Self {
+    fn from_bin(data: Vec<u8>, _: &str) -> Self {
         String::from_utf8(data).unwrap()
     }
 
-    fn into_bin(&self) -> Vec<u8> {
+    fn into_bin(&self, _: &str) -> Vec<u8> {
         self.bytes().collect::<Vec<u8>>()
+    }
+}
+
+impl<T> AsBinary for Vec<T>
+where
+    T: Binary,
+{
+    fn from_bin(data: Vec<u8>, path: &str) -> Self {
+        data.chunks(T::bin_size())
+            .map(|row| T::from_bin(row, path))
+            .collect::<Vec<T>>()
+    }
+
+    fn into_bin(&self, path: &str) -> Vec<u8> {
+        self.into_iter()
+            .flat_map(|item| item.into_bin(path))
+            .collect()
     }
 }
