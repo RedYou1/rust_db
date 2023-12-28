@@ -275,6 +275,57 @@ impl Binary for i128 {
     fn delete(&self, _: &str) {}
 }
 
+impl Binary for f32 {
+    fn from_bin(data: &[u8], _: &str) -> Self {
+        f32::from_bits(
+            ((data[0] as u32) << 24)
+                + ((data[1] as u32) << 16)
+                + ((data[2] as u32) << 8)
+                + (data[3] as u32),
+        )
+    }
+    fn into_bin(&self, _: &str) -> Vec<u8> {
+        let s = self.to_bits();
+        vec![(s >> 24) as u8, (s >> 16) as u8, (s >> 8) as u8, s as u8]
+    }
+    fn bin_size() -> usize {
+        4
+    }
+    fn delete(&self, _: &str) {}
+}
+
+impl Binary for f64 {
+    fn from_bin(data: &[u8], _: &str) -> Self {
+        f64::from_bits(
+            ((data[0] as u64) << 56)
+                + ((data[1] as u64) << 48)
+                + ((data[2] as u64) << 40)
+                + ((data[3] as u64) << 32)
+                + ((data[4] as u64) << 24)
+                + ((data[5] as u64) << 16)
+                + ((data[6] as u64) << 8)
+                + (data[7] as u64),
+        )
+    }
+    fn into_bin(&self, _: &str) -> Vec<u8> {
+        let s = self.to_bits();
+        vec![
+            (s >> 56) as u8,
+            (s >> 48) as u8,
+            (s >> 40) as u8,
+            (s >> 32) as u8,
+            (s >> 24) as u8,
+            (s >> 16) as u8,
+            (s >> 8) as u8,
+            s as u8,
+        ]
+    }
+    fn bin_size() -> usize {
+        8
+    }
+    fn delete(&self, _: &str) {}
+}
+
 impl<T, const LEN: usize> Binary for [T; LEN]
 where
     T: Binary + Copy + Default,

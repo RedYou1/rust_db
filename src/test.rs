@@ -10,6 +10,7 @@ struct Test {
     a: [u32; 3],
     b: i128,
     c: DynanicBinary<u8, String>,
+    d: f64,
 }
 
 #[test]
@@ -31,11 +32,13 @@ fn test1() {
         a: [5, 255, 1000000],
         b: 1000000,
         c: DynanicBinary::new(0, String::from("Salut")),
+        d: -1.1,
     };
     let test2 = Test {
         a: [10000, 0, 5],
         b: -1,
         c: DynanicBinary::new(1, String::from("Wow")),
+        d: 2.01,
     };
 
     assert_eq!("Salut", test1.c.data());
