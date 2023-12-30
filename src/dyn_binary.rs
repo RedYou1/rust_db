@@ -1,10 +1,13 @@
 use std::{
     fmt::Display,
     fs::{remove_file, File},
-    io::{Read, Write},
+    io::{self, Read, Write},
 };
 
-use crate::table::Binary;
+use crate::{
+    helper::{flat_remove_errors, remove_errors},
+    table::Binary,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DynanicBinary<ID, DATA>
@@ -17,8 +20,10 @@ where
 }
 
 pub trait AsBinary {
-    fn from_bin(data: Vec<u8>, path: &str) -> Self;
-    fn into_bin(&self, path: &str) -> Vec<u8>;
+    fn from_bin(data: Vec<u8>, path: &str) -> io::Result<Self>
+    where
+        Self: Sized;
+    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>>;
 }
 
 impl<ID, DATA> DynanicBinary<ID, DATA>
@@ -28,6 +33,10 @@ where
 {
     pub fn new(id: ID, data: DATA) -> Self {
         DynanicBinary { id: id, data: data }
+    }
+
+    pub fn id(&self) -> &ID {
+        &self.id
     }
 
     pub fn data(&self) -> &DATA {
@@ -44,22 +53,22 @@ where
     ID: Binary + Display,
     DATA: AsBinary,
 {
-    fn from_bin(data: &[u8], path: &str) -> Self {
-        let id = ID::from_bin(data, path);
+    fn from_bin(data: &[u8], path: &str) -> io::Result<Self> {
+        let id = ID::from_bin(data, path)?;
 
-        let mut file = File::open(format!("{path}/{id}.bin")).unwrap();
-        let mut result = vec![0 as u8; file.metadata().unwrap().len() as usize];
-        file.read(&mut result).unwrap();
-        DynanicBinary {
+        let mut file = File::open(format!("{path}/dyn/{id}.bin"))?;
+        let mut result = vec![0 as u8; file.metadata()?.len() as usize];
+        file.read(&mut result)?;
+        Ok(DynanicBinary {
             id: id,
-            data: DATA::from_bin(result, path),
-        }
+            data: DATA::from_bin(result, path)?,
+        })
     }
 
-    fn into_bin(&self, path: &str) -> Vec<u8> {
-        let mut file = File::create(format!("{path}/{}.bin", self.id)).unwrap();
-        file.write_all(&self.data.into_bin(path)).unwrap();
-        file.sync_all().unwrap();
+    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+        let mut file = File::create(format!("{path}/dyn/{}.bin", self.id))?;
+        file.write_all(&self.data.into_bin(path)?)?;
+        file.sync_all()?;
 
         self.id.into_bin(path)
     }
@@ -68,18 +77,18 @@ where
         ID::bin_size()
     }
 
-    fn delete(&self, path: &str) {
-        remove_file(format!("{path}/{}.bin", self.id)).unwrap();
+    fn delete(&self, path: &str) -> io::Result<()> {
+        remove_file(format!("{path}/dyn/{}.bin", self.id))
     }
 }
 
 impl AsBinary for String {
-    fn from_bin(data: Vec<u8>, _: &str) -> Self {
-        String::from_utf8(data).unwrap()
+    fn from_bin(data: Vec<u8>, _: &str) -> io::Result<Self> {
+        String::from_utf8(data).map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
-    fn into_bin(&self, _: &str) -> Vec<u8> {
-        self.bytes().collect::<Vec<u8>>()
+    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+        Ok(self.bytes().collect::<Vec<u8>>())
     }
 }
 
@@ -87,15 +96,11 @@ impl<T> AsBinary for Vec<T>
 where
     T: Binary,
 {
-    fn from_bin(data: Vec<u8>, path: &str) -> Self {
-        data.chunks(T::bin_size())
-            .map(|row| T::from_bin(row, path))
-            .collect::<Vec<T>>()
+    fn from_bin(data: Vec<u8>, path: &str) -> io::Result<Self> {
+        remove_errors(data.chunks(T::bin_size()).map(|row| T::from_bin(row, path)))
     }
 
-    fn into_bin(&self, path: &str) -> Vec<u8> {
-        self.into_iter()
-            .flat_map(|item| item.into_bin(path))
-            .collect()
+    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+        flat_remove_errors(self.into_iter().map(|item| item.into_bin(path)))
     }
 }

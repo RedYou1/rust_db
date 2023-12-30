@@ -1,5 +1,6 @@
 mod binary;
 mod dyn_binary;
+mod helper;
 mod table;
 #[cfg(test)]
 mod test;
@@ -27,27 +28,27 @@ struct Row {
 fn gen(a: u8, path: &str) -> Row {
     Row {
         name: DynanicBinary::new(a, a.to_string()),
-        a1: u8::from_bin(&[a], path),
-        b1: u16::from_bin(&[a, a], path),
-        c1: u32::from_bin(&[a, a, a, a], path),
-        d1: u64::from_bin(&[a, a, a, a, a, a, a, a], path),
-        e1: u128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path),
-        a2: i8::from_bin(&[a], path),
-        b2: i16::from_bin(&[a, a], path),
-        c2: i32::from_bin(&[a, a, a, a], path),
-        d2: i64::from_bin(&[a, a, a, a, a, a, a, a], path),
-        e2: i128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path),
+        a1: u8::from_bin(&[a], path).unwrap(),
+        b1: u16::from_bin(&[a, a], path).unwrap(),
+        c1: u32::from_bin(&[a, a, a, a], path).unwrap(),
+        d1: u64::from_bin(&[a, a, a, a, a, a, a, a], path).unwrap(),
+        e1: u128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path).unwrap(),
+        a2: i8::from_bin(&[a], path).unwrap(),
+        b2: i16::from_bin(&[a, a], path).unwrap(),
+        c2: i32::from_bin(&[a, a, a, a], path).unwrap(),
+        d2: i64::from_bin(&[a, a, a, a, a, a, a, a], path).unwrap(),
+        e2: i128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path).unwrap(),
         q1: [
-            bool::from_bin(&[a], path),
-            bool::from_bin(&[a], path),
-            bool::from_bin(&[a], path),
-            bool::from_bin(&[a], path),
-            bool::from_bin(&[a], path),
-            bool::from_bin(&[a], path),
-            bool::from_bin(&[a], path),
-            bool::from_bin(&[a], path),
+            bool::from_bin(&[a], path).unwrap(),
+            bool::from_bin(&[a], path).unwrap(),
+            bool::from_bin(&[a], path).unwrap(),
+            bool::from_bin(&[a], path).unwrap(),
+            bool::from_bin(&[a], path).unwrap(),
+            bool::from_bin(&[a], path).unwrap(),
+            bool::from_bin(&[a], path).unwrap(),
+            bool::from_bin(&[a], path).unwrap(),
         ],
-        q2: char::from_bin(&[a], path),
+        q2: char::from_bin(&[a], path).unwrap(),
     }
 }
 
@@ -59,7 +60,6 @@ fn main() {
         println!("1: Removing first row {}", table.len());
         table.remove(0).unwrap();
     }
-    assert_eq!(1, table.nb_files());
 
     for i in 0..=5 {
         let mut row = gen(i * 51, table.path());
