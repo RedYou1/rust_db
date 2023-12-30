@@ -43,7 +43,7 @@ fn test1() {
     remove_dir_all(TABLE_PATH).unwrap_or(());
 
     let mut table = Table::<Test>::new(TABLE_PATH).unwrap();
-    assert_eq!(0, table.len());
+    assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 
     assert_eq!("Salut", test1.c.data());
@@ -52,30 +52,30 @@ fn test1() {
 
     table.insert(0, test1.clone()).unwrap();
     table.insert(0, test2.clone()).unwrap();
-    assert_eq!(2, table.len());
+    assert_eq!(2, table.len().unwrap());
     assert_eq!(2, nb_dyns(TABLE_PATH));
-    assert_eq!(test2, *table.get(0).unwrap());
-    assert_eq!(test1, *table.get(1).unwrap());
+    assert_eq!(test2, table.get(0).unwrap().unwrap());
+    assert_eq!(test1, table.get(1).unwrap().unwrap());
 
-    let mut table = Table::<Test>::strict_new(TABLE_PATH).unwrap();
-    assert_eq!(2, table.len());
+    let mut table = Table::<Test>::strict_new(TABLE_PATH);
+    assert_eq!(2, table.len().unwrap());
     assert_eq!(2, nb_dyns(TABLE_PATH));
-    assert_eq!(test2, *table.get(0).unwrap());
-    assert_eq!(test1, *table.get(1).unwrap());
+    assert_eq!(test2, table.get(0).unwrap().unwrap());
+    assert_eq!(test1, table.get(1).unwrap().unwrap());
     table.remove(0).unwrap();
-    assert_eq!(1, table.len());
+    assert_eq!(1, table.len().unwrap());
     assert_eq!(1, nb_dyns(TABLE_PATH));
-    assert_eq!(test1, *table.get(0).unwrap());
+    assert_eq!(test1, table.get(0).unwrap().unwrap());
 
-    let mut table = Table::<Test>::strict_new(TABLE_PATH).unwrap();
-    assert_eq!(1, table.len());
+    let mut table = Table::<Test>::strict_new(TABLE_PATH);
+    assert_eq!(1, table.len().unwrap());
     assert_eq!(1, nb_dyns(TABLE_PATH));
-    assert_eq!(test1, *table.get(0).unwrap());
+    assert_eq!(test1, table.get(0).unwrap().unwrap());
     table.remove(0).unwrap();
-    assert_eq!(0, table.len());
+    assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 
-    let table = Table::<Test>::strict_new(TABLE_PATH).unwrap();
-    assert_eq!(0, table.len());
+    let table = Table::<Test>::strict_new(TABLE_PATH);
+    assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 }

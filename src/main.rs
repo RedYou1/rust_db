@@ -56,36 +56,39 @@ fn main() {
     let mut table = Table::<Row>::new("test/1").unwrap();
     assert_eq!("test/1", table.path());
 
-    while table.len() > 0 {
-        println!("1: Removing first row {}", table.len());
+    while table.len().unwrap() > 0 {
+        println!("1: Removing first row {}", table.len().unwrap());
         table.remove(0).unwrap();
     }
 
+    let mut table = Table::<Row>::strict_new("test/1");
+
     for i in 0..=5 {
         let mut row = gen(i * 51, table.path());
+        assert_eq!(i * 51, *row.name.id());
         assert_eq!(&(i * 51).to_string(), row.name.data());
         *row.name.mut_data() = format!("WOW{}", i * 51);
         assert_eq!(&format!("WOW{}", i * 51), row.name.data());
         table.insert(0, row.clone()).unwrap();
-        assert_eq!(row, *table.get(0).unwrap());
+        assert_eq!(row, table.get(0).unwrap().unwrap());
     }
 
-    println!("table1 size {}", table.len());
+    println!("table1 size {}", table.len().unwrap());
 
     let mut table2 = Table::<Row>::new("test/2").unwrap();
 
-    while table2.len() > 0 {
-        println!("2: Removing first row {}", table2.len());
+    while table2.len().unwrap() > 0 {
+        println!("2: Removing first row {}", table2.len().unwrap());
         table2.remove(0).unwrap();
     }
 
-    for (index, data) in table.datas().into_iter().enumerate() {
+    for (index, data) in table.gets(0, None).unwrap().into_iter().enumerate() {
         table2.insert(index, data.clone()).unwrap();
     }
 
-    println!("table2 size {}", table.len());
+    println!("table2 size {}", table.len().unwrap());
 
-    assert_eq!(table.datas(), table.datas());
+    assert_eq!(table.gets(0, None).unwrap(), table.gets(0, None).unwrap());
 
     println!("Success");
 }
