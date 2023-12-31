@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     helper::{flat_remove_errors, remove_errors},
-    table::Binary,
+    bin_file::Binary,
 };
 
 #[derive(Debug, Clone, PartialEq)]

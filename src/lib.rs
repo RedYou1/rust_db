@@ -1,6 +1,8 @@
 extern crate proc_macro;
 
 use proc_macro::TokenStream;
+use quote::quote;
+use syn::{parse_macro_input, Attribute, Data, DeriveInput};
 
 #[proc_macro_derive(Binary)]
 pub fn binary_derive(input: TokenStream) -> TokenStream {
@@ -73,6 +75,38 @@ pub fn binary_derive(input: TokenStream) -> TokenStream {
             fn delete(&self, path: &str) -> std::io::Result<()>{
                 #(#delete_statements)*
                 Ok(())
+            }
+        }
+    }
+    .into()
+}
+
+fn has_primary_key(attrs: &[Attribute]) -> bool {
+    attrs.iter().any(|attr| attr.path().is_ident("PrimaryKey"))
+}
+
+#[proc_macro_derive(IsRow, attributes(PrimaryKey))]
+pub fn is_row_macro(input: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(input as DeriveInput);
+    let name = &ast.ident;
+
+    let fields = match ast.data {
+        Data::Struct(ref data) => &data.fields,
+        _ => panic!("IsRow derive only supports structs."),
+    };
+
+    let field = fields
+        .iter()
+        .find(|field| has_primary_key(&field.attrs))
+        .expect("struct must contains the attribute PrimaryKey");
+
+    let field_name = field.ident.as_ref().expect("Field must have an identifier");
+    let field_type = &field.ty;
+
+    quote! {
+        impl IsRow<#field_type> for #name {
+            fn id(&self) -> &#field_type {
+                &self.#field_name
             }
         }
     }

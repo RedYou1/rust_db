@@ -4,8 +4,8 @@ use std::{
 };
 
 use crate::{
+    bin_file::{BinFile, Binary},
     dyn_binary::DynanicBinary,
-    table::{Binary, Table},
 };
 
 #[derive(Debug, Clone, PartialEq, Binary)]
@@ -20,27 +20,32 @@ fn nb_dyns(path: &str) -> usize {
     read_dir(format!("{path}/dyn")).unwrap().count()
 }
 
-#[test]
-fn test_path() {
+pub fn test_path() {
     const TABLE_PATH: &str = "test/testPath";
-    let table = Table::<Test>::new(TABLE_PATH).unwrap();
+    let table = BinFile::<Test>::new(TABLE_PATH).unwrap();
     assert_eq!(TABLE_PATH, table.path());
 }
-
 #[test]
-fn test_default() {
+fn run_test_path() {
+    test_path();
+}
+
+pub fn test_default() {
     const TABLE_PATH: &str = "test/testDefault";
     let datas = vec![1, 6, 7];
 
     if Path::new(TABLE_PATH).exists() {
         remove_dir_all(TABLE_PATH).unwrap();
     }
-    let table = Table::<u8>::new_default(TABLE_PATH, datas.clone().into_iter()).unwrap();
+    let table = BinFile::<u8>::new_default(TABLE_PATH, datas.clone().into_iter()).unwrap();
     assert_eq!(datas, table.gets(0, None).unwrap());
 }
-
 #[test]
-fn test1() {
+fn run_test_default() {
+    test_default();
+}
+
+pub fn test1() {
     const TABLE_PATH: &str = "test/test1";
     let mut test1 = Test {
         a: [5, 255, 1000000],
@@ -55,7 +60,7 @@ fn test1() {
         d: 2.01,
     };
 
-    let mut table = Table::<Test>::new(TABLE_PATH).unwrap();
+    let mut table = BinFile::<Test>::new(TABLE_PATH).unwrap();
     table.clear().unwrap();
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
@@ -72,7 +77,7 @@ fn test1() {
     assert_eq!(test2, table.get(0).unwrap());
     assert_eq!(test1, table.get(1).unwrap());
 
-    let mut table = Table::<Test>::strict_new(TABLE_PATH);
+    let mut table = BinFile::<Test>::strict_new(TABLE_PATH);
     assert_eq!(2, table.len().unwrap());
     assert_eq!(2, nb_dyns(TABLE_PATH));
     assert_eq!(test2, table.get(0).unwrap());
@@ -82,7 +87,7 @@ fn test1() {
     assert_eq!(1, nb_dyns(TABLE_PATH));
     assert_eq!(test1, table.get(0).unwrap());
 
-    let mut table = Table::<Test>::strict_new(TABLE_PATH);
+    let mut table = BinFile::<Test>::strict_new(TABLE_PATH);
     assert_eq!(1, table.len().unwrap());
     assert_eq!(1, nb_dyns(TABLE_PATH));
     assert_eq!(test1, table.get(0).unwrap());
@@ -90,13 +95,16 @@ fn test1() {
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 
-    let table = Table::<Test>::strict_new(TABLE_PATH);
+    let table = BinFile::<Test>::strict_new(TABLE_PATH);
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 }
-
 #[test]
-fn test2() {
+fn run_test1() {
+    test1();
+}
+
+pub fn test2() {
     const TABLE_PATH: &str = "test/test2";
 
     let mut a = DynanicBinary::new(b'a', b'b');
@@ -104,7 +112,7 @@ fn test2() {
     let b = DynanicBinary::new(b'b', b'b');
     let c = DynanicBinary::new(b'c', b'c');
 
-    let mut table = Table::<DynanicBinary<u8, u8>>::new(TABLE_PATH).unwrap();
+    let mut table = BinFile::<DynanicBinary<u8, u8>>::new(TABLE_PATH).unwrap();
     table.clear().unwrap();
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
@@ -132,4 +140,8 @@ fn test2() {
     table.remove(0, None).unwrap();
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
+}
+#[test]
+fn run_test2() {
+    test2();
 }

@@ -184,6 +184,41 @@ impl Binary for u128 {
     }
 }
 
+impl Binary for usize {
+    fn from_bin(data: &[u8], path: &str) -> io::Result<Self> {
+        match usize::BITS {
+            8 => u8::from_bin(data, path).map(|r| r as usize),
+            16 => u16::from_bin(data, path).map(|r| r as usize),
+            32 => u32::from_bin(data, path).map(|r| r as usize),
+            64 => u64::from_bin(data, path).map(|r| r as usize),
+            128 => u128::from_bin(data, path).map(|r| r as usize),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Other,
+                "usize size not defined",
+            )),
+        }
+    }
+    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+        match usize::BITS {
+            8 => u8::into_bin(&(*self as u8), path),
+            16 => u16::into_bin(&(*self as u16), path),
+            32 => u32::into_bin(&(*self as u32), path),
+            64 => u64::into_bin(&(*self as u64), path),
+            128 => u128::into_bin(&(*self as u128), path),
+            _ => Err(io::Error::new(
+                io::ErrorKind::Other,
+                "usize size not defined",
+            )),
+        }
+    }
+    fn bin_size() -> usize {
+        (usize::BITS / 8) as usize
+    }
+    fn delete(&self, _: &str) -> io::Result<()> {
+        Ok(())
+    }
+}
+
 impl Binary for i8 {
     fn from_bin(data: &[u8], _: &str) -> io::Result<Self> {
         Ok(data[0] as i8)

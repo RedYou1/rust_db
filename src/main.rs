@@ -1,88 +1,22 @@
+mod bin_file;
 mod binary;
 mod dyn_binary;
+mod foreign;
 mod helper;
 mod table;
-#[cfg(test)]
 mod test;
-
-use std::{fs::remove_dir_all, path::Path};
-
-use dyn_binary::DynanicBinary;
-use table::{Binary, Table};
-
-#[derive(Debug, Clone, PartialEq, Binary)]
-struct Row {
-    name: DynanicBinary<u8, String>,
-    a1: u8,
-    b1: u16,
-    c1: u32,
-    d1: u64,
-    e1: u128,
-    a2: i8,
-    b2: i16,
-    c2: i32,
-    d2: i64,
-    e2: i128,
-    q1: [bool; 8],
-    q2: char,
-}
-
-fn gen(a: u8, path: &str) -> Row {
-    Row {
-        name: DynanicBinary::new(a, a.to_string()),
-        a1: u8::from_bin(&[a], path).unwrap(),
-        b1: u16::from_bin(&[a, a], path).unwrap(),
-        c1: u32::from_bin(&[a, a, a, a], path).unwrap(),
-        d1: u64::from_bin(&[a, a, a, a, a, a, a, a], path).unwrap(),
-        e1: u128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path).unwrap(),
-        a2: i8::from_bin(&[a], path).unwrap(),
-        b2: i16::from_bin(&[a, a], path).unwrap(),
-        c2: i32::from_bin(&[a, a, a, a], path).unwrap(),
-        d2: i64::from_bin(&[a, a, a, a, a, a, a, a], path).unwrap(),
-        e2: i128::from_bin(&[a, a, a, a, a, a, a, a, a, a, a, a, a, a, a, a], path).unwrap(),
-        q1: [
-            bool::from_bin(&[a], path).unwrap(),
-            bool::from_bin(&[a], path).unwrap(),
-            bool::from_bin(&[a], path).unwrap(),
-            bool::from_bin(&[a], path).unwrap(),
-            bool::from_bin(&[a], path).unwrap(),
-            bool::from_bin(&[a], path).unwrap(),
-            bool::from_bin(&[a], path).unwrap(),
-            bool::from_bin(&[a], path).unwrap(),
-        ],
-        q2: char::from_bin(&[a], path).unwrap(),
-    }
-}
+mod test_table;
 
 fn main() {
-    let mut table = Table::<Row>::new("test/1").unwrap();
-    assert_eq!("test/1", table.path());
-    table.clear().unwrap();
-
-    let mut table = Table::<Row>::strict_new("test/1");
-
-    for i in 0..=5 {
-        let mut row = gen(i * 51, table.path());
-        assert_eq!(i * 51, *row.name.id());
-        assert_eq!(&(i * 51).to_string(), row.name.data());
-        *row.name.mut_data() = format!("WOW{}", i * 51);
-        assert_eq!(&format!("WOW{}", i * 51), row.name.data());
-        table.insert(0, row.clone()).unwrap();
-        assert_eq!(row, table.get(0).unwrap());
-    }
-    table.remove(2, Some(2)).unwrap();
-
-    println!("table1 size {}", table.len().unwrap());
-
-    if Path::new("test/2").exists() {
-        remove_dir_all("test/2").unwrap();
-    }
-    let table2 =
-        Table::<Row>::new_default("test/2", table.gets(0, None).unwrap().into_iter()).unwrap();
-
-    println!("table2 size {}", table.len().unwrap());
-
-    assert_eq!(table.gets(0, None).unwrap(), table2.gets(0, None).unwrap());
-
-    println!("Success");
+    println!("test_path");
+    test::test_path();
+    println!("test_default");
+    test::test_default();
+    println!("test1");
+    test::test1();
+    println!("test2");
+    test::test2();
+    println!("test_table_get");
+    test_table::test_table_get();
+    println!("Success!");
 }
