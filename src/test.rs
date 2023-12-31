@@ -1,4 +1,7 @@
-use std::fs::read_dir;
+use std::{
+    fs::{read_dir, remove_dir_all},
+    path::Path,
+};
 
 use crate::{
     dyn_binary::DynanicBinary,
@@ -22,6 +25,18 @@ fn test_path() {
     const TABLE_PATH: &str = "test/testPath";
     let table = Table::<Test>::new(TABLE_PATH).unwrap();
     assert_eq!(TABLE_PATH, table.path());
+}
+
+#[test]
+fn test_default() {
+    const TABLE_PATH: &str = "test/testDefault";
+    let datas = vec![1, 6, 7];
+
+    if Path::new(TABLE_PATH).exists() {
+        remove_dir_all(TABLE_PATH).unwrap();
+    }
+    let table = Table::<u8>::new_default(TABLE_PATH, datas.clone().into_iter()).unwrap();
+    assert_eq!(datas, table.gets(0, None).unwrap());
 }
 
 #[test]
@@ -109,7 +124,7 @@ fn test2() {
     );
     assert_eq!(vec![c.clone()], table.gets(1, Some(1)).unwrap());
     assert_eq!(vec![b.clone()], table.gets(0, Some(1)).unwrap());
-    
+
     table.remove(1, Some(1)).unwrap();
     assert_eq!(2, nb_dyns(TABLE_PATH));
     assert_eq!(vec![b.clone(), a.clone()], table.gets(0, None).unwrap());

@@ -30,6 +30,19 @@ where
         })
     }
 
+    pub fn new_default(path: &'a str, datas: impl Iterator<Item = Row>) -> std::io::Result<Self> {
+        let mut table = Table {
+            path: path,
+            phantom: PhantomData::default(),
+        };
+        if !Path::new(path).exists() {
+            create_dir_all(format!("{path}/dyn"))?;
+            File::create(format!("{}/main.bin", path).as_str())?;
+            table.inserts(0, datas)?;
+        }
+        Ok(table)
+    }
+
     pub fn strict_new(path: &'a str) -> Self {
         Table {
             path: path,

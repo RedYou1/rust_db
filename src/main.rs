@@ -5,6 +5,8 @@ mod table;
 #[cfg(test)]
 mod test;
 
+use std::{fs::remove_dir_all, path::Path};
+
 use dyn_binary::DynanicBinary;
 use table::{Binary, Table};
 
@@ -72,15 +74,15 @@ fn main() {
 
     println!("table1 size {}", table.len().unwrap());
 
-    let mut table2 = Table::<Row>::new("test/2").unwrap();
-    table2.clear().unwrap();
-    table2
-        .inserts(0, table.gets(0, None).unwrap().into_iter())
-        .unwrap();
+    if Path::new("test/2").exists() {
+        remove_dir_all("test/2").unwrap();
+    }
+    let table2 =
+        Table::<Row>::new_default("test/2", table.gets(0, None).unwrap().into_iter()).unwrap();
 
     println!("table2 size {}", table.len().unwrap());
 
-    assert_eq!(table.gets(0, None).unwrap(), table.gets(0, None).unwrap());
+    assert_eq!(table.gets(0, None).unwrap(), table2.gets(0, None).unwrap());
 
     println!("Success");
 }
