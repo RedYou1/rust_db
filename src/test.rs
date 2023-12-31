@@ -1,4 +1,4 @@
-use std::fs::{read_dir, remove_dir_all};
+use std::fs::read_dir;
 
 use crate::{
     dyn_binary::DynanicBinary,
@@ -40,9 +40,8 @@ fn test1() {
         d: 2.01,
     };
 
-    remove_dir_all(TABLE_PATH).unwrap_or(());
-
     let mut table = Table::<Test>::new(TABLE_PATH).unwrap();
+    table.clear().unwrap();
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 
@@ -50,32 +49,72 @@ fn test1() {
     *test1.c.mut_data() = String::from("Salut2");
     assert_eq!("Salut2", test1.c.data());
 
-    table.insert(0, test1.clone()).unwrap();
-    table.insert(0, test2.clone()).unwrap();
+    table
+        .inserts(0, [test2.clone(), test1.clone()].into_iter())
+        .unwrap();
     assert_eq!(2, table.len().unwrap());
     assert_eq!(2, nb_dyns(TABLE_PATH));
-    assert_eq!(test2, table.get(0).unwrap().unwrap());
-    assert_eq!(test1, table.get(1).unwrap().unwrap());
+    assert_eq!(test2, table.get(0).unwrap());
+    assert_eq!(test1, table.get(1).unwrap());
 
     let mut table = Table::<Test>::strict_new(TABLE_PATH);
     assert_eq!(2, table.len().unwrap());
     assert_eq!(2, nb_dyns(TABLE_PATH));
-    assert_eq!(test2, table.get(0).unwrap().unwrap());
-    assert_eq!(test1, table.get(1).unwrap().unwrap());
-    table.remove(0).unwrap();
+    assert_eq!(test2, table.get(0).unwrap());
+    assert_eq!(test1, table.get(1).unwrap());
+    table.remove(0, Some(1)).unwrap();
     assert_eq!(1, table.len().unwrap());
     assert_eq!(1, nb_dyns(TABLE_PATH));
-    assert_eq!(test1, table.get(0).unwrap().unwrap());
+    assert_eq!(test1, table.get(0).unwrap());
 
     let mut table = Table::<Test>::strict_new(TABLE_PATH);
     assert_eq!(1, table.len().unwrap());
     assert_eq!(1, nb_dyns(TABLE_PATH));
-    assert_eq!(test1, table.get(0).unwrap().unwrap());
-    table.remove(0).unwrap();
+    assert_eq!(test1, table.get(0).unwrap());
+    table.remove(0, None).unwrap();
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 
     let table = Table::<Test>::strict_new(TABLE_PATH);
+    assert_eq!(0, table.len().unwrap());
+    assert_eq!(0, nb_dyns(TABLE_PATH));
+}
+
+#[test]
+fn test2() {
+    const TABLE_PATH: &str = "test/test2";
+
+    let mut a = DynanicBinary::new(b'a', b'b');
+    *a.mut_data() = b'a';
+    let b = DynanicBinary::new(b'b', b'b');
+    let c = DynanicBinary::new(b'c', b'c');
+
+    let mut table = Table::<DynanicBinary<u8, u8>>::new(TABLE_PATH).unwrap();
+    table.clear().unwrap();
+    assert_eq!(0, table.len().unwrap());
+    assert_eq!(0, nb_dyns(TABLE_PATH));
+
+    table.insert(0, a.clone()).unwrap();
+    assert_eq!(1, table.len().unwrap());
+    assert_eq!(1, nb_dyns(TABLE_PATH));
+    assert_eq!(a.clone(), table.get(0).unwrap());
+
+    table
+        .inserts(0, [b.clone(), c.clone()].into_iter())
+        .unwrap();
+    assert_eq!(3, nb_dyns(TABLE_PATH));
+    assert_eq!(
+        vec![b.clone(), c.clone(), a.clone()],
+        table.gets(0, None).unwrap()
+    );
+    assert_eq!(vec![c.clone()], table.gets(1, Some(1)).unwrap());
+    assert_eq!(vec![b.clone()], table.gets(0, Some(1)).unwrap());
+    
+    table.remove(1, Some(1)).unwrap();
+    assert_eq!(2, nb_dyns(TABLE_PATH));
+    assert_eq!(vec![b.clone(), a.clone()], table.gets(0, None).unwrap());
+
+    table.remove(0, None).unwrap();
     assert_eq!(0, table.len().unwrap());
     assert_eq!(0, nb_dyns(TABLE_PATH));
 }

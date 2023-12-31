@@ -1,10 +1,9 @@
 pub use crate::binary::Binary;
 use crate::helper::{flat_remove_errors, remove_errors};
 use std::{
-    fs::{self, create_dir_all, File},
-    io::{self},
+    fs::{self, create_dir_all, remove_dir_all, File},
+    io::{self, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
-    os::windows::fs::FileExt,
     path::Path,
 };
 
@@ -42,11 +41,27 @@ where
         self.path
     }
 
-    pub fn get(&self, index: usize) -> io::Result<Option<Row>> {
-        Ok(self
-            .gets(index, Some(1))?
-            .first()
-            .map(|value| value.clone()))
+    pub fn get(&self, index: usize) -> io::Result<Row> {
+        let first_byte = index * Row::bin_size();
+        let file_len = self.file_len()?;
+
+        if (first_byte + Row::bin_size()) > file_len {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!(
+                    "first_byte:{} < file_len:{}",
+                    first_byte + Row::bin_size(),
+                    file_len
+                ),
+            ));
+        }
+        let mut result = vec![0 as u8; Row::bin_size()];
+        {
+            let mut file = File::open(format!("{}/main.bin", self.path))?;
+            file.seek(SeekFrom::Start(first_byte as u64))?;
+            file.read(&mut result)?;
+        }
+        Row::from_bin(&result, self.path)
     }
 
     pub fn gets(&self, index: usize, len: Option<usize>) -> io::Result<Vec<Row>> {
@@ -71,13 +86,22 @@ where
                         format!("first_byte:{} < file_len:{}", first_byte, file_len),
                     ));
                 }
-                file_len - first_byte
+                let len = file_len - first_byte;
+                if len % Row::bin_size() != 0 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("len:{} not divisable by {}", len, Row::bin_size()),
+                    ));
+                }
+                len
             }
         };
         let mut result = vec![0 as u8; len];
-        
-        let file = File::open(format!("{}/main.bin", self.path))?;
-        file.seek_read(&mut result, first_byte as u64)?;
+        {
+            let mut file = File::open(format!("{}/main.bin", self.path))?;
+            file.seek(SeekFrom::Start(first_byte as u64))?;
+            file.read(&mut result)?;
+        }
         remove_errors(
             result
                 .chunks(Row::bin_size())
@@ -94,27 +118,49 @@ where
     }
 
     pub fn insert(&mut self, index: usize, data: Row) -> std::io::Result<()> {
-        let mut datas = self.gets(index, None)?;
-        datas.insert(0, data);
-        let bin = flat_remove_errors(datas.into_iter().map(|row| row.into_bin(self.path)))?;
+        let mut all_datas = self.gets(index, None)?;
+        all_datas.insert(0, data);
+        let bin = flat_remove_errors(all_datas.into_iter().map(|row| row.into_bin(self.path)))?;
 
-        let file = File::create(format!("{}/main.bin", self.path).as_str())?;
-        file.seek_write(&bin, (index * Row::bin_size()) as u64)?;
+        let mut file = File::create(format!("{}/main.bin", self.path).as_str())?;
+        file.seek(SeekFrom::Start((index * Row::bin_size()) as u64))?;
+        file.write_all(&bin)?;
         file.sync_all()
     }
 
-    pub fn remove(&mut self, index: usize) -> std::io::Result<()> {
-        let file_len = self.file_len()?;
-        let mut datas = self.gets(index, None)?;
-        datas.remove(0).delete(self.path)?;
-        let bin = if (index + 1) > file_len {
-            vec![]
-        } else {
-            flat_remove_errors(datas.into_iter().map(|row| row.into_bin(self.path)))?
-        };
+    pub fn inserts(
+        &mut self,
+        index: usize,
+        datas: impl Iterator<Item = Row>,
+    ) -> std::io::Result<()> {
+        let mut all_datas = self.gets(index, None)?;
+        for (i, data) in datas.enumerate() {
+            all_datas.insert(i, data);
+        }
+        let bin = flat_remove_errors(all_datas.into_iter().map(|row| row.into_bin(self.path)))?;
 
-        let file = File::create(format!("{}/main.bin", self.path).as_str())?;
-        file.seek_write(&bin, (index * Row::bin_size()) as u64)?;
+        let mut file = File::create(format!("{}/main.bin", self.path).as_str())?;
+        file.seek(SeekFrom::Start((index * Row::bin_size()) as u64))?;
+        file.write_all(&bin)?;
         file.sync_all()
+    }
+
+    pub fn remove(&mut self, index: usize, len: Option<usize>) -> std::io::Result<()> {
+        let mut datas = self.gets(0, None)?;
+        for _ in 0..len.unwrap_or(datas.len() - index) {
+            datas.remove(index).delete(self.path)?;
+        }
+        let bin = flat_remove_errors(datas.into_iter().map(|row| row.into_bin(self.path)))?;
+
+        let mut file = File::create(format!("{}/main.bin", self.path).as_str())?;
+        file.write_all(&bin)?;
+        file.sync_all()
+    }
+
+    pub fn clear(&mut self) -> std::io::Result<()> {
+        remove_dir_all(self.path)?;
+        create_dir_all(format!("{}/dyn", self.path))?;
+        File::create(format!("{}/main.bin", self.path).as_str())?;
+        Ok(())
     }
 }

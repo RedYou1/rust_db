@@ -2,15 +2,25 @@ use std::io;
 
 pub use rust_db::Binary;
 
-use crate::helper::flat_remove_errors;
+use crate::{dyn_binary::AsBinary, helper::flat_remove_errors};
 
-pub trait Binary {
+pub trait Binary: AsBinary {
     fn from_bin(data: &[u8], path: &str) -> io::Result<Self>
     where
         Self: Sized;
     fn into_bin(&self, path: &str) -> io::Result<Vec<u8>>;
     fn bin_size() -> usize;
     fn delete(&self, path: &str) -> io::Result<()>;
+}
+
+impl<T: Binary> AsBinary for T {
+    fn from_as_bin(data: Vec<u8>, path: &str) -> io::Result<Self> {
+        T::from_bin(&data, path)
+    }
+
+    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+        self.into_bin(path)
+    }
 }
 
 impl Binary for char {

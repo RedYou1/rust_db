@@ -20,10 +20,10 @@ where
 }
 
 pub trait AsBinary {
-    fn from_bin(data: Vec<u8>, path: &str) -> io::Result<Self>
+    fn from_as_bin(data: Vec<u8>, path: &str) -> io::Result<Self>
     where
         Self: Sized;
-    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>>;
+    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>>;
 }
 
 impl<ID, DATA> DynanicBinary<ID, DATA>
@@ -61,13 +61,13 @@ where
         file.read(&mut result)?;
         Ok(DynanicBinary {
             id: id,
-            data: DATA::from_bin(result, path)?,
+            data: DATA::from_as_bin(result, path)?,
         })
     }
 
     fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         let mut file = File::create(format!("{path}/dyn/{}.bin", self.id))?;
-        file.write_all(&self.data.into_bin(path)?)?;
+        file.write_all(&self.data.into_as_bin(path)?)?;
         file.sync_all()?;
 
         self.id.into_bin(path)
@@ -83,11 +83,11 @@ where
 }
 
 impl AsBinary for String {
-    fn from_bin(data: Vec<u8>, _: &str) -> io::Result<Self> {
+    fn from_as_bin(data: Vec<u8>, _: &str) -> io::Result<Self> {
         String::from_utf8(data).map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn into_as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(self.bytes().collect::<Vec<u8>>())
     }
 }
@@ -96,11 +96,11 @@ impl<T> AsBinary for Vec<T>
 where
     T: Binary,
 {
-    fn from_bin(data: Vec<u8>, path: &str) -> io::Result<Self> {
+    fn from_as_bin(data: Vec<u8>, path: &str) -> io::Result<Self> {
         remove_errors(data.chunks(T::bin_size()).map(|row| T::from_bin(row, path)))
     }
 
-    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         flat_remove_errors(self.into_iter().map(|item| item.into_bin(path)))
     }
 }
