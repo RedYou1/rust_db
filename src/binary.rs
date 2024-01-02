@@ -2,7 +2,7 @@ use std::io;
 
 pub use rust_db::Binary;
 
-use crate::{dyn_binary::AsBinary, helper::flat_remove_errors};
+use crate::dyn_binary::AsBinary;
 
 pub trait Binary: AsBinary {
     fn from_bin(data: &[u8], path: &str) -> io::Result<Self>
@@ -423,7 +423,13 @@ where
     }
 
     fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
-        flat_remove_errors(self.iter().map(|item| item.into_bin(path)))
+        Ok(self
+            .iter()
+            .map(|item| item.into_bin(path))
+            .collect::<io::Result<Vec<Vec<u8>>>>()?
+            .into_iter()
+            .flatten()
+            .collect())
     }
 
     fn bin_size() -> usize {

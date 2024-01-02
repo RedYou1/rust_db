@@ -4,10 +4,7 @@ use std::{
     io::{self, Read, Write},
 };
 
-use crate::{
-    helper::{flat_remove_errors, remove_errors},
-    bin_file::Binary,
-};
+use crate::bin_file::Binary;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DynanicBinary<ID, DATA>
@@ -88,7 +85,7 @@ impl AsBinary for String {
     }
 
     fn into_as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
-        Ok(self.bytes().collect::<Vec<u8>>())
+        Ok(self.bytes().collect())
     }
 }
 
@@ -97,10 +94,18 @@ where
     T: Binary,
 {
     fn from_as_bin(data: Vec<u8>, path: &str) -> io::Result<Self> {
-        remove_errors(data.chunks(T::bin_size()).map(|row| T::from_bin(row, path)))
+        data.chunks(T::bin_size())
+            .map(|row| T::from_bin(row, path))
+            .collect()
     }
 
     fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
-        flat_remove_errors(self.into_iter().map(|item| item.into_bin(path)))
+        Ok(self
+            .into_iter()
+            .map(|item| item.into_bin(path))
+            .collect::<io::Result<Vec<Vec<u8>>>>()?
+            .into_iter()
+            .flatten()
+            .collect())
     }
 }

@@ -1,5 +1,4 @@
 pub use crate::binary::Binary;
-use crate::helper::{flat_remove_errors, remove_errors};
 use std::{
     fs::{self, create_dir_all, remove_dir_all, File},
     io::{self, Read, Seek, SeekFrom, Write},
@@ -115,11 +114,11 @@ where
             file.seek(SeekFrom::Start(first_byte as u64))?;
             file.read(&mut result)?;
         }
-        remove_errors(
-            result
-                .chunks(Row::bin_size())
-                .map(|row| Row::from_bin(row, self.path)),
-        )
+
+        result
+            .chunks(Row::bin_size())
+            .map(|row| Row::from_bin(row, self.path))
+            .collect()
     }
 
     fn file_len(&self) -> io::Result<usize> {
@@ -133,7 +132,13 @@ where
     pub fn insert(&mut self, index: usize, data: Row) -> std::io::Result<()> {
         let mut all_datas = self.gets(index, None)?;
         all_datas.insert(0, data);
-        let bin = flat_remove_errors(all_datas.into_iter().map(|row| row.into_bin(self.path)))?;
+        let bin: Vec<u8> = all_datas
+            .into_iter()
+            .map(|row| row.into_bin(self.path))
+            .collect::<io::Result<Vec<Vec<u8>>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
 
         let mut file = File::create(format!("{}/main.bin", self.path).as_str())?;
         file.seek(SeekFrom::Start((index * Row::bin_size()) as u64))?;
@@ -150,7 +155,13 @@ where
         for (i, data) in datas.enumerate() {
             all_datas.insert(i, data);
         }
-        let bin = flat_remove_errors(all_datas.into_iter().map(|row| row.into_bin(self.path)))?;
+        let bin: Vec<u8> = all_datas
+            .into_iter()
+            .map(|row| row.into_bin(self.path))
+            .collect::<io::Result<Vec<Vec<u8>>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
 
         let mut file = File::create(format!("{}/main.bin", self.path).as_str())?;
         file.seek(SeekFrom::Start((index * Row::bin_size()) as u64))?;
@@ -163,7 +174,13 @@ where
         for _ in 0..len.unwrap_or(datas.len() - index) {
             datas.remove(index).delete(self.path)?;
         }
-        let bin = flat_remove_errors(datas.into_iter().map(|row| row.into_bin(self.path)))?;
+        let bin: Vec<u8> = datas
+            .into_iter()
+            .map(|row| row.into_bin(self.path))
+            .collect::<io::Result<Vec<Vec<u8>>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
 
         let mut file = File::create(format!("{}/main.bin", self.path).as_str())?;
         file.write_all(&bin)?;
