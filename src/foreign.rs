@@ -2,14 +2,14 @@ use std::{io, marker::PhantomData};
 
 use crate::{
     binary::Binary,
-    table::{IsRow, Table},
+    table::{Table, TableRow},
 };
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Foreign<ID, Row>
 where
-    Row: IsRow<ID>,
     ID: Binary + PartialEq,
+    Row: TableRow<ID>,
 {
     id: ID,
     phantom_data: PhantomData<Row>,
@@ -17,8 +17,8 @@ where
 
 impl<ID, Row> Binary for Foreign<ID, Row>
 where
-    Row: IsRow<ID>,
     ID: Binary + PartialEq,
+    Row: TableRow<ID>,
 {
     fn from_bin(data: &[u8], path: &str) -> std::io::Result<Self>
     where
@@ -45,8 +45,8 @@ where
 
 impl<ID, Row> Foreign<ID, Row>
 where
-    Row: IsRow<ID>,
     ID: Binary + PartialEq,
+    Row: TableRow<ID>,
 {
     pub fn new(id: ID) -> Self {
         Foreign {

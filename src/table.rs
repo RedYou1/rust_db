@@ -1,8 +1,9 @@
+pub use crate::row_binary::RowBinary;
 use crate::{bin_file::BinFile, binary::Binary};
-pub use rust_db::IsRow;
+pub use rust_db::TableRow;
 use std::{io, marker::PhantomData};
 
-pub trait IsRow<ID>: Binary
+pub trait TableRow<ID>: Binary
 where
     ID: Binary + PartialEq,
 {
@@ -11,8 +12,8 @@ where
 
 pub struct Table<'a, Row, ID>
 where
-    Row: IsRow<ID>,
     ID: Binary + PartialEq,
+    Row: TableRow<ID>,
 {
     bin: BinFile<'a, Row>,
     phantom_id: PhantomData<ID>,
@@ -20,8 +21,8 @@ where
 
 impl<'a, Row, ID> Table<'a, Row, ID>
 where
-    Row: IsRow<ID>,
     ID: Binary + PartialEq,
+    Row: TableRow<ID>,
 {
     pub fn new(path: &'a str) -> io::Result<Self> {
         Ok(Table {
@@ -74,7 +75,7 @@ where
                 .gets(0, None)?
                 .into_iter()
                 .enumerate()
-                .find(|(index, row)| *row.id() == *id)
+                .find(|(_, row)| *row.id() == *id)
                 .ok_or(io::Error::new(io::ErrorKind::Other, "Element not found"))?
                 .0,
             Some(1),

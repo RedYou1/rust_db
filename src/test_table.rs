@@ -3,23 +3,25 @@ use std::io;
 use std::path::Path;
 
 use crate::binary::Binary;
-use crate::dyn_binary::DynanicBinary;
 use crate::foreign::Foreign;
-use crate::table::{IsRow, Table};
+use crate::row_binary::RowBinary;
+use crate::row_dyn_binary::RowDynanicBinary;
+use crate::table::{Table, TableRow};
+use std::marker::PhantomData;
 
-#[derive(Debug, Clone, PartialEq, Binary, IsRow)]
+#[derive(Debug, Clone, PartialEq, TableRow)]
 struct Client {
     #[PrimaryKey]
     id: usize,
-    nom: DynanicBinary<usize, String>,
+    nom: RowDynanicBinary<usize, String>,
     entreprise: Foreign<usize, Entreprise>,
 }
 
-#[derive(Debug, Clone, PartialEq, Binary, IsRow)]
+#[derive(Debug, Clone, PartialEq, TableRow)]
 struct Entreprise {
     #[PrimaryKey]
     id: usize,
-    nom: DynanicBinary<usize, String>,
+    nom: RowDynanicBinary<usize, String>,
 }
 
 pub fn test_table_get() {
@@ -29,28 +31,28 @@ pub fn test_table_get() {
     let entreprises = [
         Entreprise {
             id: 1,
-            nom: DynanicBinary::new(1, String::from("BigTech")),
+            nom: RowDynanicBinary::new(String::from("BigTech")),
         },
         Entreprise {
             id: 2,
-            nom: DynanicBinary::new(2, String::from("Mine")),
+            nom: RowDynanicBinary::new(String::from("Mine")),
         },
     ];
 
     let clients = [
         Client {
             id: 1,
-            nom: DynanicBinary::new(1, String::from("Bob")),
+            nom: RowDynanicBinary::new(String::from("Bob")),
             entreprise: Foreign::new(1),
         },
         Client {
             id: 2,
-            nom: DynanicBinary::new(2, String::from("Fred")),
+            nom: RowDynanicBinary::new(String::from("Fred")),
             entreprise: Foreign::new(1),
         },
         Client {
             id: 3,
-            nom: DynanicBinary::new(3, String::from("Will")),
+            nom: RowDynanicBinary::new(String::from("Will")),
             entreprise: Foreign::new(2),
         },
     ];
@@ -58,15 +60,15 @@ pub fn test_table_get() {
     if Path::new(CLIENTS_PATH).exists() {
         remove_dir_all(CLIENTS_PATH).unwrap();
     }
-    let table_clients =
-        Table::<Client, usize>::new_default(CLIENTS_PATH, clients.clone().into_iter()).unwrap();
+    let table_clients = Table::new_default(CLIENTS_PATH, clients.clone().into_iter()).unwrap();
 
     if Path::new(ENTREPRISES_PATH).exists() {
         remove_dir_all(ENTREPRISES_PATH).unwrap();
     }
-    let mut table_entreprises =
-        Table::<Entreprise, usize>::new_default(ENTREPRISES_PATH, entreprises.clone().into_iter())
-            .unwrap();
+    let mut table_entreprises = Table::new(ENTREPRISES_PATH).unwrap();
+    table_entreprises
+        .inserts(entreprises.clone().into_iter())
+        .unwrap();
 
     for client in &clients {
         assert_eq!(
@@ -78,7 +80,11 @@ pub fn test_table_get() {
                 .unwrap()
                 .nom
                 .data(),
-            entreprises[*client.entreprise.id() - 1].nom.data()
+            table_entreprises
+                .get(client.entreprise.id())
+                .unwrap()
+                .nom
+                .data()
         );
     }
     table_entreprises.clear().unwrap();
