@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs::remove_dir_all;
 use std::io;
 use std::path::Path;
@@ -22,6 +23,7 @@ struct Entreprise {
     #[PrimaryKey]
     id: usize,
     nom: RowDynanicBinary<usize, String>,
+    employe: RowDynanicBinary<usize, HashMap<usize, [char; 4]>>,
 }
 
 pub fn test_table_get() {
@@ -32,11 +34,13 @@ pub fn test_table_get() {
         Entreprise {
             id: 1,
             nom: RowDynanicBinary::new(String::from("BigTech")),
+            employe: RowDynanicBinary::new([(0,['M','L','P','X']),(1,['K','H','E','A']),(2,['J','Q','V','Z'])].into_iter().collect())
         },
         Entreprise {
             id: 2,
             nom: RowDynanicBinary::new(String::from("Mine")),
-        },
+            employe: RowDynanicBinary::new([(0,['U','R','W','S'])].into_iter().collect())
+        }
     ];
 
     let clients = [

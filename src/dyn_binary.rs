@@ -1,6 +1,8 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     fs::{remove_file, File},
+    hash::Hash,
     io::{self, Read, Write},
 };
 
@@ -103,6 +105,39 @@ where
         Ok(self
             .into_iter()
             .flat_map(|item| item.into_bin(path))
+            .flatten()
+            .collect())
+    }
+}
+
+impl<K, V> AsBinary for HashMap<K, V>
+where
+    K: Binary + Eq + Hash,
+    V: Binary,
+{
+    fn from_as_bin(data: Vec<u8>, path: &str) -> io::Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(data
+            .chunks(K::bin_size() + V::bin_size())
+            .flat_map(|data| -> io::Result<(K, V)> {
+                Ok((
+                    K::from_bin(data, path)?,
+                    V::from_bin(&data[K::bin_size()..], path)?,
+                ))
+            })
+            .collect())
+    }
+
+    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+        Ok(self
+            .into_iter()
+            .flat_map(|t| -> io::Result<Vec<u8>> {
+                let mut a = t.0.into_bin(path)?;
+                a.extend_from_slice(&t.1.into_bin(path)?);
+                Ok(a)
+            })
             .flatten()
             .collect())
     }

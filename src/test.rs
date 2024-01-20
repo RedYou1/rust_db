@@ -1,6 +1,6 @@
 use std::{
     fs::{read_dir, remove_dir_all},
-    path::Path,
+    path::Path, collections::HashMap,
 };
 
 use crate::{
@@ -14,6 +14,7 @@ struct Test {
     b: i128,
     c: DynanicBinary<u8, String>,
     d: f64,
+    e: DynanicBinary<u8, HashMap<u32, u32>>
 }
 
 fn nb_dyns(path: &str) -> usize {
@@ -52,12 +53,14 @@ pub fn test1() {
         b: 1000000,
         c: DynanicBinary::new(0, String::from("Salut")),
         d: -1.1,
+        e: DynanicBinary::new(1, [(1,2), (2,3)].into_iter().collect())
     };
     let test2 = Test {
         a: [10000, 0, 5],
         b: -1,
-        c: DynanicBinary::new(1, String::from("Wow")),
+        c: DynanicBinary::new(2, String::from("Wow")),
         d: 2.01,
+        e: DynanicBinary::new(3, [(5,4), (3,2)].into_iter().collect())
     };
 
     let mut table = BinFile::<Test>::new(TABLE_PATH).unwrap();
@@ -73,23 +76,23 @@ pub fn test1() {
         .inserts(0, [test2.clone(), test1.clone()].into_iter())
         .unwrap();
     assert_eq!(2, table.len().unwrap());
-    assert_eq!(2, nb_dyns(TABLE_PATH));
+    assert_eq!(4, nb_dyns(TABLE_PATH));
     assert_eq!(test2, table.get(0).unwrap());
     assert_eq!(test1, table.get(1).unwrap());
 
     let mut table = BinFile::<Test>::strict_new(TABLE_PATH);
     assert_eq!(2, table.len().unwrap());
-    assert_eq!(2, nb_dyns(TABLE_PATH));
+    assert_eq!(4, nb_dyns(TABLE_PATH));
     assert_eq!(test2, table.get(0).unwrap());
     assert_eq!(test1, table.get(1).unwrap());
     table.remove(0, Some(1)).unwrap();
     assert_eq!(1, table.len().unwrap());
-    assert_eq!(1, nb_dyns(TABLE_PATH));
+    assert_eq!(2, nb_dyns(TABLE_PATH));
     assert_eq!(test1, table.get(0).unwrap());
 
     let mut table = BinFile::<Test>::strict_new(TABLE_PATH);
     assert_eq!(1, table.len().unwrap());
-    assert_eq!(1, nb_dyns(TABLE_PATH));
+    assert_eq!(2, nb_dyns(TABLE_PATH));
     assert_eq!(test1, table.get(0).unwrap());
     table.remove(0, None).unwrap();
     assert_eq!(0, table.len().unwrap());
