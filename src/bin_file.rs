@@ -134,9 +134,7 @@ where
         all_datas.insert(0, data);
         let bin: Vec<u8> = all_datas
             .into_iter()
-            .map(|row| row.into_bin(self.path))
-            .collect::<io::Result<Vec<Vec<u8>>>>()?
-            .into_iter()
+            .flat_map(|row| row.into_bin(self.path))
             .flatten()
             .collect();
 
@@ -157,9 +155,7 @@ where
         }
         let bin: Vec<u8> = all_datas
             .into_iter()
-            .map(|row| row.into_bin(self.path))
-            .collect::<io::Result<Vec<Vec<u8>>>>()?
-            .into_iter()
+            .flat_map(|row| row.into_bin(self.path))
             .flatten()
             .collect();
 
@@ -176,9 +172,7 @@ where
         }
         let bin: Vec<u8> = datas
             .into_iter()
-            .map(|row| row.into_bin(self.path))
-            .collect::<io::Result<Vec<Vec<u8>>>>()?
-            .into_iter()
+            .flat_map(|row| row.into_bin(self.path))
             .flatten()
             .collect();
 

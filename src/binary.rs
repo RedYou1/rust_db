@@ -425,9 +425,7 @@ where
     fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         Ok(self
             .iter()
-            .map(|item| item.into_bin(path))
-            .collect::<io::Result<Vec<Vec<u8>>>>()?
-            .into_iter()
+            .flat_map(|item| item.into_bin(path))
             .flatten()
             .collect())
     }
