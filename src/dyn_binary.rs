@@ -22,7 +22,7 @@ pub trait AsBinary {
     fn from_as_bin(data: Vec<u8>, path: &str) -> io::Result<Self>
     where
         Self: Sized;
-    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>>;
+    fn as_as_bin(&self, path: &str) -> io::Result<Vec<u8>>;
 }
 
 impl<ID, DATA> DynanicBinary<ID, DATA>
@@ -30,15 +30,15 @@ where
     ID: Binary + Display,
     DATA: AsBinary,
 {
-    pub fn new(id: ID, data: DATA) -> Self {
-        DynanicBinary { id: id, data: data }
+    pub const fn new(id: ID, data: DATA) -> Self {
+        DynanicBinary { id, data }
     }
 
-    pub fn id(&self) -> &ID {
+    pub const fn id(&self) -> &ID {
         &self.id
     }
 
-    pub fn data(&self) -> &DATA {
+    pub const fn data(&self) -> &DATA {
         &self.data
     }
 
@@ -56,20 +56,20 @@ where
         let id = ID::from_bin(data, path)?;
 
         let mut file = File::open(format!("{path}/dyn/{id}.bin"))?;
-        let mut result = vec![0 as u8; file.metadata()?.len() as usize];
-        file.read(&mut result)?;
+        let mut result = vec![0; file.metadata()?.len() as usize];
+        file.read_exact(&mut result)?;
         Ok(DynanicBinary {
-            id: id,
+            id,
             data: DATA::from_as_bin(result, path)?,
         })
     }
 
-    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         let mut file = File::create(format!("{path}/dyn/{}.bin", self.id))?;
-        file.write_all(&self.data.into_as_bin(path)?)?;
+        file.write_all(&self.data.as_as_bin(path)?)?;
         file.sync_all()?;
 
-        self.id.into_bin(path)
+        self.id.as_bin(path)
     }
 
     fn bin_size() -> usize {
@@ -86,7 +86,7 @@ impl AsBinary for String {
         String::from_utf8(data).map_err(|err| io::Error::new(io::ErrorKind::Other, err))
     }
 
-    fn into_as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(self.bytes().collect())
     }
 }
@@ -101,10 +101,10 @@ where
             .collect()
     }
 
-    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+    fn as_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         Ok(self
-            .into_iter()
-            .flat_map(|item| item.into_bin(path))
+            .iter()
+            .flat_map(|item| item.as_bin(path))
             .flatten()
             .collect())
     }
@@ -130,12 +130,12 @@ where
             .collect())
     }
 
-    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+    fn as_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         Ok(self
-            .into_iter()
+            .iter()
             .flat_map(|t| -> io::Result<Vec<u8>> {
-                let mut a = t.0.into_bin(path)?;
-                a.extend_from_slice(&t.1.into_bin(path)?);
+                let mut a = t.0.as_bin(path)?;
+                a.extend_from_slice(&t.1.as_bin(path)?);
                 Ok(a)
             })
             .flatten()

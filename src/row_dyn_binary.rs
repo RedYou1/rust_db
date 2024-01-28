@@ -18,14 +18,14 @@ where
 }
 
 impl<ID: Binary + Display, DATA: AsBinary> RowDynanicBinary<ID, DATA> {
-    pub fn new(data: DATA) -> Self {
+    pub const fn new(data: DATA) -> Self {
         RowDynanicBinary {
-            id: PhantomData::default(),
-            data: data,
+            id: PhantomData,
+            data,
         }
     }
 
-    pub fn data(&self) -> &DATA {
+    pub const fn data(&self) -> &DATA {
         &self.data
     }
 
@@ -37,17 +37,17 @@ impl<ID: Binary + Display, DATA: AsBinary> RowDynanicBinary<ID, DATA> {
 impl<ID: Binary + Display, DATA: AsBinary> RowBinary<ID> for RowDynanicBinary<ID, DATA> {
     fn from_row_bin(_: &[u8], id: &ID, path: &str) -> io::Result<Self> {
         let mut file = File::open(format!("{path}/dyn/{id}.bin"))?;
-        let mut result = vec![0 as u8; file.metadata()?.len() as usize];
-        file.read(&mut result)?;
+        let mut result = vec![0; file.metadata()?.len() as usize];
+        file.read_exact(&mut result)?;
         Ok(RowDynanicBinary {
-            id: PhantomData::default(),
+            id: PhantomData,
             data: DATA::from_as_bin(result, path)?,
         })
     }
 
-    fn into_row_bin(&self, id: &ID, path: &str) -> io::Result<Vec<u8>> {
+    fn as_row_bin(&self, id: &ID, path: &str) -> io::Result<Vec<u8>> {
         let mut file = File::create(format!("{path}/dyn/{id}.bin"))?;
-        file.write_all(&self.data.into_as_bin(path)?)?;
+        file.write_all(&self.data.as_as_bin(path)?)?;
         file.sync_all()?;
 
         Ok(vec![])

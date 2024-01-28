@@ -8,7 +8,7 @@ where
     fn from_row_bin(data: &[u8], id: &ID, path: &str) -> io::Result<Self>
     where
         Self: Sized;
-    fn into_row_bin(&self, id: &ID, path: &str) -> io::Result<Vec<u8>>;
+    fn as_row_bin(&self, id: &ID, path: &str) -> io::Result<Vec<u8>>;
     fn row_bin_size(_: PhantomData<ID>) -> usize;
     fn row_delete(&self, id: &ID, path: &str) -> io::Result<()>;
 }
@@ -20,8 +20,8 @@ impl<ID: Binary + Display, Bin: Binary> RowBinary<ID> for Bin {
     {
         Bin::from_bin(data, path)
     }
-    fn into_row_bin(&self, _: &ID, path: &str) -> io::Result<Vec<u8>> {
-        self.into_bin(path)
+    fn as_row_bin(&self, _: &ID, path: &str) -> io::Result<Vec<u8>> {
+        self.as_bin(path)
     }
     fn row_bin_size(_: PhantomData<ID>) -> usize {
         Bin::bin_size()

@@ -34,13 +34,21 @@ pub fn test_table_get() {
         Entreprise {
             id: 1,
             nom: RowDynanicBinary::new(String::from("BigTech")),
-            employe: RowDynanicBinary::new([(0,['M','L','P','X']),(1,['K','H','E','A']),(2,['J','Q','V','Z'])].into_iter().collect())
+            employe: RowDynanicBinary::new(
+                [
+                    (0, ['M', 'L', 'P', 'X']),
+                    (1, ['K', 'H', 'E', 'A']),
+                    (2, ['J', 'Q', 'V', 'Z']),
+                ]
+                .into_iter()
+                .collect(),
+            ),
         },
         Entreprise {
             id: 2,
             nom: RowDynanicBinary::new(String::from("Mine")),
-            employe: RowDynanicBinary::new([(0,['U','R','W','S'])].into_iter().collect())
-        }
+            employe: RowDynanicBinary::new([(0, ['U', 'R', 'W', 'S'])].into_iter().collect()),
+        },
     ];
 
     let clients = [
@@ -62,44 +70,48 @@ pub fn test_table_get() {
     ];
 
     if Path::new(CLIENTS_PATH).exists() {
-        remove_dir_all(CLIENTS_PATH).unwrap();
+        remove_dir_all(CLIENTS_PATH).expect("CLIENTS_PATH already exists");
     }
-    let table_clients = Table::new_default(CLIENTS_PATH, clients.clone().into_iter()).unwrap();
+    let table_clients = Table::new_default(CLIENTS_PATH, clients.clone().into_iter())
+        .expect("failed to create table_clients");
 
     if Path::new(ENTREPRISES_PATH).exists() {
-        remove_dir_all(ENTREPRISES_PATH).unwrap();
+        remove_dir_all(ENTREPRISES_PATH).expect("ENTREPRISES_PATH already exists");
     }
-    let mut table_entreprises = Table::new(ENTREPRISES_PATH).unwrap();
+    let mut table_entreprises =
+        Table::new(ENTREPRISES_PATH).expect("failed to create table_entreprises");
     table_entreprises
         .inserts(entreprises.clone().into_iter())
-        .unwrap();
+        .expect("failed to insert entreprises");
 
     for client in &clients {
         assert_eq!(
             table_clients
                 .get(&client.id)
-                .unwrap()
+                .expect("client doesnt exists")
                 .entreprise
                 .data(&table_entreprises)
-                .unwrap()
+                .expect("entreprise doesnt exists")
                 .nom
                 .data(),
             table_entreprises
                 .get(client.entreprise.id())
-                .unwrap()
+                .expect("entreprise doesnt exists")
                 .nom
                 .data()
         );
     }
-    table_entreprises.clear().unwrap();
+    table_entreprises
+        .clear()
+        .expect("failed to clear entreprise");
     for client in &clients {
         assert_eq!(
             table_clients
                 .get(&client.id)
-                .unwrap()
+                .expect("client doesnt exists")
                 .entreprise
                 .data(&table_entreprises)
-                .unwrap_err()
+                .expect_err("entreprise does exists")
                 .kind(),
             io::ErrorKind::Other
         );

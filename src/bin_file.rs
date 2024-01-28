@@ -21,35 +21,35 @@ where
     pub fn new(path: &'a str) -> std::io::Result<Self> {
         if !Path::new(path).exists() {
             create_dir_all(format!("{path}/dyn"))?;
-            File::create(format!("{}/main.bin", path).as_str())?;
+            File::create(format!("{path}/main.bin").as_str())?;
         }
         Ok(BinFile {
-            path: path,
-            phantom_row: PhantomData::default(),
+            path,
+            phantom_row: PhantomData,
         })
     }
 
     pub fn new_default(path: &'a str, datas: impl Iterator<Item = Row>) -> std::io::Result<Self> {
         let mut table = BinFile {
-            path: path,
-            phantom_row: PhantomData::default(),
+            path,
+            phantom_row: PhantomData,
         };
         if !Path::new(path).exists() {
             create_dir_all(format!("{path}/dyn"))?;
-            File::create(format!("{}/main.bin", path).as_str())?;
+            File::create(format!("{path}/main.bin").as_str())?;
             table.inserts(0, datas)?;
         }
         Ok(table)
     }
 
-    pub fn strict_new(path: &'a str) -> Self {
+    pub const fn strict_new(path: &'a str) -> Self {
         BinFile {
-            path: path,
-            phantom_row: PhantomData::default(),
+            path,
+            phantom_row: PhantomData,
         }
     }
 
-    pub fn path(&self) -> &'a str {
+    pub const fn path(&self) -> &'a str {
         self.path
     }
 
@@ -67,11 +67,11 @@ where
                 ),
             ));
         }
-        let mut result = vec![0 as u8; Row::bin_size()];
+        let mut result = vec![0; Row::bin_size()];
         {
             let mut file = File::open(format!("{}/main.bin", self.path))?;
             file.seek(SeekFrom::Start(first_byte as u64))?;
-            file.read(&mut result)?;
+            file.read_exact(&mut result)?;
         }
         Row::from_bin(&result, self.path)
     }
@@ -80,39 +80,37 @@ where
         let first_byte = index * Row::bin_size();
         let file_len = self.file_len()?;
 
-        let len = match len {
-            Some(len) => {
-                let len = len * Row::bin_size();
-                if (first_byte + len) > file_len {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("first_byte:{} < file_len:{}", first_byte + len, file_len),
-                    ));
-                }
-                len
+        let len = if let Some(len) = len {
+            let len = len * Row::bin_size();
+            if (first_byte + len) > file_len {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("first_byte:{} < file_len:{}", first_byte + len, file_len),
+                ));
             }
-            None => {
-                if first_byte > file_len {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("first_byte:{} < file_len:{}", first_byte, file_len),
-                    ));
-                }
-                let len = file_len - first_byte;
-                if len % Row::bin_size() != 0 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        format!("len:{} not divisable by {}", len, Row::bin_size()),
-                    ));
-                }
-                len
+            len
+        } else {
+            if first_byte > file_len {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("first_byte:{first_byte} < file_len:{file_len}"),
+                ));
             }
+            let len = file_len - first_byte;
+            if len % Row::bin_size() != 0 {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("len:{} not divisable by {}", len, Row::bin_size()),
+                ));
+            }
+            len
         };
-        let mut result = vec![0 as u8; len];
+
+        let mut result = vec![0; len];
         {
             let mut file = File::open(format!("{}/main.bin", self.path))?;
             file.seek(SeekFrom::Start(first_byte as u64))?;
-            file.read(&mut result)?;
+            file.read_exact(&mut result)?;
         }
 
         result
@@ -134,7 +132,7 @@ where
         all_datas.insert(0, data);
         let bin: Vec<u8> = all_datas
             .into_iter()
-            .flat_map(|row| row.into_bin(self.path))
+            .flat_map(|row| row.as_bin(self.path))
             .flatten()
             .collect();
 
@@ -155,7 +153,7 @@ where
         }
         let bin: Vec<u8> = all_datas
             .into_iter()
-            .flat_map(|row| row.into_bin(self.path))
+            .flat_map(|row| row.as_bin(self.path))
             .flatten()
             .collect();
 
@@ -172,7 +170,7 @@ where
         }
         let bin: Vec<u8> = datas
             .into_iter()
-            .flat_map(|row| row.into_bin(self.path))
+            .flat_map(|row| row.as_bin(self.path))
             .flatten()
             .collect();
 

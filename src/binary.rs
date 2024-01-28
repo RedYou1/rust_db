@@ -8,7 +8,7 @@ pub trait Binary: AsBinary {
     fn from_bin(data: &[u8], path: &str) -> io::Result<Self>
     where
         Self: Sized;
-    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>>;
+    fn as_bin(&self, path: &str) -> io::Result<Vec<u8>>;
     fn bin_size() -> usize;
     fn delete(&self, path: &str) -> io::Result<()>;
 }
@@ -18,8 +18,8 @@ impl<T: Binary> AsBinary for T {
         T::from_bin(&data, path)
     }
 
-    fn into_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
-        self.into_bin(path)
+    fn as_as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+        self.as_bin(path)
     }
 }
 
@@ -27,7 +27,7 @@ impl Binary for char {
     fn from_bin(data: &[u8], _: &str) -> io::Result<Self> {
         Ok(data[0] as char)
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![*self as u8])
     }
     fn bin_size() -> usize {
@@ -42,7 +42,7 @@ impl Binary for bool {
     fn from_bin(data: &[u8], _: &str) -> io::Result<Self> {
         Ok(data[0] != 0)
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![*self as u8])
     }
     fn bin_size() -> usize {
@@ -57,7 +57,7 @@ impl Binary for u8 {
     fn from_bin(data: &[u8], _: &str) -> io::Result<Self> {
         Ok(data[0])
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![*self])
     }
     fn bin_size() -> usize {
@@ -72,7 +72,7 @@ impl Binary for u16 {
     fn from_bin(data: &[u8], _: &str) -> io::Result<Self> {
         Ok(((data[0] as u16) << 8) + (data[1] as u16))
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![(*self >> 8) as u8, *self as u8])
     }
     fn bin_size() -> usize {
@@ -90,7 +90,7 @@ impl Binary for u32 {
             + ((data[2] as u32) << 8)
             + (data[3] as u32))
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![
             (*self >> 24) as u8,
             (*self >> 16) as u8,
@@ -117,7 +117,7 @@ impl Binary for u64 {
             + ((data[6] as u64) << 8)
             + (data[7] as u64))
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![
             (*self >> 56) as u8,
             (*self >> 48) as u8,
@@ -156,7 +156,7 @@ impl Binary for u128 {
             + ((data[14] as u128) << 8)
             + (data[15] as u128))
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![
             (*self >> 120) as u8,
             (*self >> 112) as u8,
@@ -198,13 +198,13 @@ impl Binary for usize {
             )),
         }
     }
-    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         match usize::BITS {
-            8 => u8::into_bin(&(*self as u8), path),
-            16 => u16::into_bin(&(*self as u16), path),
-            32 => u32::into_bin(&(*self as u32), path),
-            64 => u64::into_bin(&(*self as u64), path),
-            128 => u128::into_bin(&(*self as u128), path),
+            8 => u8::as_bin(&(*self as u8), path),
+            16 => u16::as_bin(&(*self as u16), path),
+            32 => u32::as_bin(&(*self as u32), path),
+            64 => u64::as_bin(&(*self as u64), path),
+            128 => u128::as_bin(&(*self as u128), path),
             _ => Err(io::Error::new(
                 io::ErrorKind::Other,
                 "usize size not defined",
@@ -223,7 +223,7 @@ impl Binary for i8 {
     fn from_bin(data: &[u8], _: &str) -> io::Result<Self> {
         Ok(data[0] as i8)
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![*self as u8])
     }
     fn bin_size() -> usize {
@@ -238,7 +238,7 @@ impl Binary for i16 {
     fn from_bin(data: &[u8], _: &str) -> io::Result<Self> {
         Ok((((data[0] as u16) << 8) + (data[1] as u16)) as i16)
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![(*self >> 8) as u8, *self as u8])
     }
     fn bin_size() -> usize {
@@ -256,7 +256,7 @@ impl Binary for i32 {
             + ((data[2] as u32) << 8)
             + (data[3] as u32)) as i32)
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![
             (*self >> 24) as u8,
             (*self >> 16) as u8,
@@ -283,7 +283,7 @@ impl Binary for i64 {
             + ((data[6] as u64) << 8)
             + (data[7] as u64)) as i64)
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![
             (*self >> 56) as u8,
             (*self >> 48) as u8,
@@ -322,7 +322,7 @@ impl Binary for i128 {
             + ((data[14] as u128) << 8)
             + (data[15] as u128)) as i128)
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         Ok(vec![
             (*self >> 120) as u8,
             (*self >> 112) as u8,
@@ -359,7 +359,7 @@ impl Binary for f32 {
                 + (data[3] as u32),
         ))
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         let s = self.to_bits();
         Ok(vec![
             (s >> 24) as u8,
@@ -389,7 +389,7 @@ impl Binary for f64 {
                 + (data[7] as u64),
         ))
     }
-    fn into_bin(&self, _: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, _: &str) -> io::Result<Vec<u8>> {
         let s = self.to_bits();
         Ok(vec![
             (s >> 56) as u8,
@@ -422,10 +422,10 @@ where
         Ok(result)
     }
 
-    fn into_bin(&self, path: &str) -> io::Result<Vec<u8>> {
+    fn as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
         Ok(self
             .iter()
-            .flat_map(|item| item.into_bin(path))
+            .flat_map(|item| item.as_bin(path))
             .flatten()
             .collect())
     }

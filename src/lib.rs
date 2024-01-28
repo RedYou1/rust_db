@@ -3,24 +3,25 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, Data, DeriveInput};
 
+/// # Panics
+/// Will panic if cant parse the input
 #[proc_macro_derive(Binary)]
 pub fn binary_derive(input: TokenStream) -> TokenStream {
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+    let ast: syn::DeriveInput = syn::parse(input).expect("failed to parse the input");
     let struct_name = &ast.ident;
 
-    let data_struct = match ast.data {
-        syn::Data::Struct(ref data_struct) => data_struct,
-        _ => panic!("Binary derive only supports structs."),
+    let syn::Data::Struct(ref data_struct) = ast.data else {
+        panic!("Binary derive only supports structs.")
     };
 
     let mut field_declarations = Vec::new();
     let mut from_bin_assignments = Vec::new();
-    let mut into_bin_statements = Vec::new();
+    let mut as_bin_statements = Vec::new();
     let mut bin_size_statements = Vec::new();
     let mut delete_statements = Vec::new();
 
-    for field in data_struct.fields.iter() {
-        let field_name = field.ident.as_ref().unwrap();
+    for field in &data_struct.fields {
+        let field_name = field.ident.as_ref().expect("Field must have an identifier");
         let field_type = &field.ty;
 
         field_declarations.push(quote::quote! {
@@ -32,8 +33,8 @@ pub fn binary_derive(input: TokenStream) -> TokenStream {
             offset += <#field_type>::bin_size();
         });
 
-        into_bin_statements.push(quote::quote! {
-            bin_data.extend_from_slice(&self.#field_name.into_bin(path)?);
+        as_bin_statements.push(quote::quote! {
+            bin_data.extend_from_slice(&self.#field_name.as_bin(path)?);
         });
 
         bin_size_statements.push(quote::quote! {
@@ -55,9 +56,9 @@ pub fn binary_derive(input: TokenStream) -> TokenStream {
                 })
             }
 
-            fn into_bin(&self, path: &str) -> std::io::Result<Vec<u8>> {
+            fn as_bin(&self, path: &str) -> std::io::Result<Vec<u8>> {
                 let mut bin_data = Vec::new();
-                #(#into_bin_statements)*
+                #(#as_bin_statements)*
                 Ok(bin_data)
             }
 
@@ -76,6 +77,8 @@ pub fn binary_derive(input: TokenStream) -> TokenStream {
     .into()
 }
 
+/// # Panics
+/// Will panic if cant parse the input
 #[proc_macro_derive(TableRow, attributes(PrimaryKey))]
 pub fn table_row_macro(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
@@ -102,11 +105,11 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
 
     let mut field_declarations = Vec::new();
     let mut from_bin_assignments = Vec::new();
-    let mut into_bin_statements = Vec::new();
+    let mut as_bin_statements = Vec::new();
     let mut bin_size_statements = Vec::new();
     let mut delete_statements = Vec::new();
 
-    for field in fields.iter() {
+    for field in fields {
         let field_name = field.ident.as_ref().expect("Field must have an identifier");
         if primary_field_name.eq(field_name) {
             continue;
@@ -122,8 +125,8 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
             offset += <#field_type>::row_bin_size(PhantomData::<#primary_field_type>::default());
         });
 
-        into_bin_statements.push(quote::quote! {
-            bin_data.extend_from_slice(&self.#field_name.into_row_bin(&self.#primary_field_name, path)?);
+        as_bin_statements.push(quote::quote! {
+            bin_data.extend_from_slice(&self.#field_name.as_row_bin(&self.#primary_field_name, path)?);
         });
 
         bin_size_statements.push(quote::quote! {
@@ -147,9 +150,9 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
                 })
             }
 
-            fn into_bin(&self, path: &str) -> std::io::Result<Vec<u8>> {
-                let mut bin_data = self.#primary_field_name.into_bin(path)?;
-                #(#into_bin_statements)*
+            fn as_bin(&self, path: &str) -> std::io::Result<Vec<u8>> {
+                let mut bin_data = self.#primary_field_name.as_bin(path)?;
+                #(#as_bin_statements)*
                 Ok(bin_data)
             }
 

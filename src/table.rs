@@ -1,4 +1,3 @@
-pub use crate::row_binary::RowBinary;
 use crate::{bin_file::BinFile, binary::Binary};
 pub use rust_db::TableRow;
 use std::{io, marker::PhantomData};
@@ -27,21 +26,21 @@ where
     pub fn new(path: &'a str) -> io::Result<Self> {
         Ok(Table {
             bin: BinFile::new(path)?,
-            phantom_id: PhantomData::default(),
+            phantom_id: PhantomData,
         })
     }
 
     pub fn new_default(path: &'a str, datas: impl Iterator<Item = Row>) -> std::io::Result<Self> {
         Ok(Table {
             bin: BinFile::new_default(path, datas)?,
-            phantom_id: PhantomData::default(),
+            phantom_id: PhantomData,
         })
     }
 
-    pub fn strict_new(path: &'a str) -> Self {
+    pub const fn strict_new(path: &'a str) -> Self {
         Table {
             bin: BinFile::strict_new(path),
-            phantom_id: PhantomData::default(),
+            phantom_id: PhantomData,
         }
     }
 

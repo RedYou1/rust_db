@@ -26,12 +26,12 @@ where
     {
         Ok(Foreign {
             id: ID::from_bin(data, path)?,
-            phantom_data: PhantomData::default(),
+            phantom_data: PhantomData,
         })
     }
 
-    fn into_bin(&self, path: &str) -> std::io::Result<Vec<u8>> {
-        self.id.into_bin(path)
+    fn as_bin(&self, path: &str) -> std::io::Result<Vec<u8>> {
+        self.id.as_bin(path)
     }
 
     fn bin_size() -> usize {
@@ -48,14 +48,14 @@ where
     ID: Binary + PartialEq,
     Row: TableRow<ID>,
 {
-    pub fn new(id: ID) -> Self {
+    pub const fn new(id: ID) -> Self {
         Foreign {
-            id: id,
-            phantom_data: PhantomData::default(),
+            id,
+            phantom_data: PhantomData,
         }
     }
 
-    pub fn id(&self) -> &ID {
+    pub const fn id(&self) -> &ID {
         &self.id
     }
 
