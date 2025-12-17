@@ -13,9 +13,9 @@ use crate::{
 struct Test {
     a: [u32; 3],
     b: i128,
-    c: DynanicBinary<u8, String>,
+    c: DynanicBinary<String>,
     d: f64,
-    e: DynanicBinary<u8, HashMap<u32, u32>>,
+    e: DynanicBinary<HashMap<u32, u32>>,
 }
 
 fn nb_dyns(path: &str) -> usize {
@@ -55,16 +55,16 @@ pub fn test1() {
     let mut test1 = Test {
         a: [5, 255, 1_000_000],
         b: 1_000_000,
-        c: DynanicBinary::new(0, String::from("Salut")),
+        c: DynanicBinary::new(String::from("Salut")),
         d: -1.1,
-        e: DynanicBinary::new(1, [(1, 2), (2, 3)].into_iter().collect()),
+        e: DynanicBinary::new([(1, 2), (2, 3)].into_iter().collect()),
     };
     let test2 = Test {
         a: [10000, 0, 5],
         b: -1,
-        c: DynanicBinary::new(2, String::from("Wow")),
+        c: DynanicBinary::new(String::from("Wow")),
         d: 2.01,
-        e: DynanicBinary::new(3, [(5, 4), (3, 2)].into_iter().collect()),
+        e: DynanicBinary::new([(5, 4), (3, 2)].into_iter().collect()),
     };
 
     let mut table = BinFile::<Test>::new(TABLE_PATH).expect("failed to new");
@@ -84,7 +84,7 @@ pub fn test1() {
     assert_eq!(test2, table.get(0).expect("failed to get"));
     assert_eq!(test1, table.get(1).expect("failed to get"));
 
-    let mut table = BinFile::<Test>::strict_new(TABLE_PATH);
+    let mut table = unsafe { BinFile::<Test>::strict_new(TABLE_PATH) };
     assert_eq!(2, table.len().expect("failed len"));
     assert_eq!(4, nb_dyns(TABLE_PATH));
     assert_eq!(test2, table.get(0).expect("failed to get"));
@@ -94,7 +94,7 @@ pub fn test1() {
     assert_eq!(2, nb_dyns(TABLE_PATH));
     assert_eq!(test1, table.get(0).expect("failed to get"));
 
-    let mut table = BinFile::<Test>::strict_new(TABLE_PATH);
+    let mut table = unsafe { BinFile::<Test>::strict_new(TABLE_PATH) };
     assert_eq!(1, table.len().expect("failed len"));
     assert_eq!(2, nb_dyns(TABLE_PATH));
     assert_eq!(test1, table.get(0).expect("failed to get"));
@@ -102,7 +102,7 @@ pub fn test1() {
     assert_eq!(0, table.len().expect("failed len"));
     assert_eq!(0, nb_dyns(TABLE_PATH));
 
-    let table = BinFile::<Test>::strict_new(TABLE_PATH);
+    let table = unsafe { BinFile::<Test>::strict_new(TABLE_PATH) };
     assert_eq!(0, table.len().expect("failed len"));
     assert_eq!(0, nb_dyns(TABLE_PATH));
 }
@@ -114,12 +114,12 @@ fn run_test1() {
 pub fn test2() {
     const TABLE_PATH: &str = "test/test2";
 
-    let mut a = DynanicBinary::new(b'a', b'b');
+    let mut a = DynanicBinary::new(b'b');
     *a.mut_data() = b'a';
-    let b = DynanicBinary::new(b'b', b'b');
-    let c = DynanicBinary::new(b'c', b'c');
+    let b = DynanicBinary::new(b'b');
+    let c = DynanicBinary::new(b'c');
 
-    let mut table = BinFile::<DynanicBinary<u8, u8>>::new(TABLE_PATH).expect("failed new");
+    let mut table = BinFile::<DynanicBinary<u8>>::new(TABLE_PATH).expect("failed new");
     table.clear().expect("failed clear");
     assert_eq!(0, table.len().expect("failed len"));
     assert_eq!(0, nb_dyns(TABLE_PATH));

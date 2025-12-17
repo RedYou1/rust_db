@@ -4,17 +4,15 @@ use std::io;
 use std::path::Path;
 
 use crate::binary::Binary;
+use crate::dyn_binary::DynanicBinary;
 use crate::foreign::Foreign;
-use crate::row_binary::RowBinary;
-use crate::row_dyn_binary::RowDynanicBinary;
 use crate::table::{Table, TableRow};
-use std::marker::PhantomData;
 
 #[derive(Debug, Clone, PartialEq, TableRow)]
 struct Client {
     #[PrimaryKey]
     id: usize,
-    nom: RowDynanicBinary<usize, String>,
+    nom: DynanicBinary<String>,
     entreprise: Foreign<usize, Entreprise>,
 }
 
@@ -22,8 +20,8 @@ struct Client {
 struct Entreprise {
     #[PrimaryKey]
     id: usize,
-    nom: RowDynanicBinary<usize, String>,
-    employe: RowDynanicBinary<usize, HashMap<usize, [char; 4]>>,
+    nom: DynanicBinary<String>,
+    employe: DynanicBinary<HashMap<u8, [char; 4]>>,
 }
 
 pub fn test_table_get() {
@@ -33,8 +31,8 @@ pub fn test_table_get() {
     let entreprises = [
         Entreprise {
             id: 1,
-            nom: RowDynanicBinary::new(String::from("BigTech")),
-            employe: RowDynanicBinary::new(
+            nom: DynanicBinary::new(String::from("BigTech")),
+            employe: DynanicBinary::new(
                 [
                     (0, ['M', 'L', 'P', 'X']),
                     (1, ['K', 'H', 'E', 'A']),
@@ -46,25 +44,25 @@ pub fn test_table_get() {
         },
         Entreprise {
             id: 2,
-            nom: RowDynanicBinary::new(String::from("Mine")),
-            employe: RowDynanicBinary::new([(0, ['U', 'R', 'W', 'S'])].into_iter().collect()),
+            nom: DynanicBinary::new(String::from("Mine")),
+            employe: DynanicBinary::new([(0, ['U', 'R', 'W', 'S'])].into_iter().collect()),
         },
     ];
 
     let clients = [
         Client {
             id: 1,
-            nom: RowDynanicBinary::new(String::from("Bob")),
+            nom: DynanicBinary::new(String::from("Bob")),
             entreprise: Foreign::new(1),
         },
         Client {
             id: 2,
-            nom: RowDynanicBinary::new(String::from("Fred")),
+            nom: DynanicBinary::new(String::from("Fred")),
             entreprise: Foreign::new(1),
         },
         Client {
             id: 3,
-            nom: RowDynanicBinary::new(String::from("Will")),
+            nom: DynanicBinary::new(String::from("Will")),
             entreprise: Foreign::new(2),
         },
     ];
@@ -84,31 +82,44 @@ pub fn test_table_get() {
         .inserts(entreprises.clone().into_iter())
         .expect("failed to insert entreprises");
 
-    for client in &clients {
+    for (a, b) in entreprises
+        .iter()
+        .zip(table_entreprises.get_all().expect("gets entreprises"))
+    {
+        assert_eq!(a.id, b.id);
+        assert_eq!(a.nom, b.nom);
+        assert_eq!(a.employe.data().len(), b.employe.data().len());
+        assert!(b.nom.id().is_some());
+        assert!(b.employe.id().is_some());
+        for a in a.employe.data() {
+            let b = b.employe.data()[a.0];
+            assert!(a.1[0].eq(&b[0]));
+            assert!(a.1[1].eq(&b[1]));
+            assert!(a.1[2].eq(&b[2]));
+            assert!(a.1[3].eq(&b[3]));
+        }
+    }
+
+    for client in table_clients.get_all().expect("client doesnt exists") {
+        assert!(client.nom.id().is_some());
         assert_eq!(
-            table_clients
-                .get(&client.id)
-                .expect("client doesnt exists")
+            client
                 .entreprise
                 .data(&table_entreprises)
                 .expect("entreprise doesnt exists")
-                .nom
-                .data(),
+                .nom,
             table_entreprises
                 .get(client.entreprise.id())
                 .expect("entreprise doesnt exists")
                 .nom
-                .data()
         );
     }
     table_entreprises
         .clear()
         .expect("failed to clear entreprise");
-    for client in &clients {
+    for client in table_clients.get_all().expect("client doesnt exists") {
         assert_eq!(
-            table_clients
-                .get(&client.id)
-                .expect("client doesnt exists")
+            client
                 .entreprise
                 .data(&table_entreprises)
                 .expect_err("entreprise does exists")

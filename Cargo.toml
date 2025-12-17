@@ -1,32 +1,27 @@
 [package]
 name = "rust_db"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lints.clippy]
-uninit-assumed-init = "allow"
-cast-possible-truncation = "allow"
-pedantic = "deny"
+allow_attributes = "warn"
 missing-const-for-fn = "deny"
-unwrap-used = "deny"
 unused-enumerate-index = "deny"
 as-underscore = "deny"
-get-unwrap = "deny"
 str-to-string = "deny"
 too-many-lines = "deny"
 todo = "warn"
-
-cast-possible-wrap = "allow"
-cast-lossless = "allow"
-cast-sign-loss = "allow"
-module-name-repetitions = "allow"
+get-unwrap = "warn"
+unwrap-used = "warn"
+unwrap_in_result = "warn"
+map_unwrap_or = "warn"
 
 [lib]
 proc-macro = true
 
 [dependencies]
-syn = "=2.0.48"
-quote = "=1.0.35"
-proc-macro2 = "=1.0.78"
+syn = "=2.0"
+quote = "=1.0"
+proc-macro2 = "=1.0"

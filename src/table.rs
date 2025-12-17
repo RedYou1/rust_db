@@ -37,9 +37,9 @@ where
         })
     }
 
-    pub const fn strict_new(path: &'a str) -> Self {
+    pub const unsafe fn strict_new(path: &'a str) -> Self {
         Table {
-            bin: BinFile::strict_new(path),
+            bin: unsafe { BinFile::strict_new(path) },
             phantom_id: PhantomData,
         }
     }
@@ -49,7 +49,7 @@ where
             .gets(0, None)?
             .into_iter()
             .find(|row| *row.id() == *id)
-            .ok_or(io::Error::new(io::ErrorKind::Other, "Element not found"))
+            .ok_or(io::Error::other("Element not found"))
     }
 
     pub fn get_all(&self) -> io::Result<Vec<Row>> {
@@ -75,7 +75,7 @@ where
                 .into_iter()
                 .enumerate()
                 .find(|(_, row)| *row.id() == *id)
-                .ok_or(io::Error::new(io::ErrorKind::Other, "Element not found"))?
+                .ok_or(io::Error::other("Element not found"))?
                 .0,
             Some(1),
         )

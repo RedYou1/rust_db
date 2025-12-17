@@ -121,20 +121,20 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
         });
 
         from_bin_assignments.push(quote::quote! {
-            let #field_name = <#field_type>::from_row_bin(&data[offset..], &#primary_field_name, path)?;
-            offset += <#field_type>::row_bin_size(PhantomData::<#primary_field_type>::default());
+            let #field_name = <#field_type>::from_bin(&data[offset..], path)?;
+            offset += <#field_type>::bin_size();
         });
 
         as_bin_statements.push(quote::quote! {
-            bin_data.extend_from_slice(&self.#field_name.as_row_bin(&self.#primary_field_name, path)?);
+            bin_data.extend_from_slice(&self.#field_name.as_bin(path)?);
         });
 
         bin_size_statements.push(quote::quote! {
-            size += <#field_type>::row_bin_size(PhantomData::<#primary_field_type>::default());
+            size += <#field_type>::bin_size();
         });
 
         delete_statements.push(quote::quote! {
-            self.#field_name.row_delete(&self.#primary_field_name, path)?;
+            self.#field_name.delete(path)?;
         });
     }
 

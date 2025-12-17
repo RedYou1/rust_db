@@ -2,8 +2,6 @@ mod bin_file;
 mod binary;
 mod dyn_binary;
 mod foreign;
-mod row_binary;
-mod row_dyn_binary;
 mod table;
 mod test;
 mod test_table;

@@ -1,21 +1,26 @@
 use std::{
     collections::HashMap,
-    fmt::Display,
-    fs::{remove_file, File},
+    fs::{File, read_dir, remove_file},
     hash::Hash,
-    io::{self, Read, Write},
+    io::{self, Error, Read, Write},
+    num::NonZero,
 };
 
 use crate::bin_file::Binary;
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct DynanicBinary<ID, DATA>
+#[derive(Debug, Clone)]
+pub struct DynanicBinary<DATA>
 where
-    ID: Binary + Display,
     DATA: AsBinary,
 {
-    id: ID,
+    id: Option<NonZero<usize>>,
     data: DATA,
+}
+
+impl<DATA: AsBinary + PartialEq> PartialEq for DynanicBinary<DATA> {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
 }
 
 pub trait AsBinary {
@@ -25,65 +30,76 @@ pub trait AsBinary {
     fn as_as_bin(&self, path: &str) -> io::Result<Vec<u8>>;
 }
 
-impl<ID, DATA> DynanicBinary<ID, DATA>
+impl<DATA> DynanicBinary<DATA>
 where
-    ID: Binary + Display,
     DATA: AsBinary,
 {
-    pub const fn new(id: ID, data: DATA) -> Self {
-        DynanicBinary { id, data }
+    pub const fn new(data: DATA) -> Self {
+        DynanicBinary { id: None, data }
     }
 
-    pub const fn id(&self) -> &ID {
-        &self.id
+    pub const fn id(&self) -> Option<NonZero<usize>> {
+        self.id
+    }
+
+    pub(crate) fn id_error(&self) -> Result<NonZero<usize>, Error> {
+        self.id.ok_or(io::Error::other("id is not set"))
     }
 
     pub const fn data(&self) -> &DATA {
         &self.data
     }
 
-    pub fn mut_data(&mut self) -> &mut DATA {
+    pub const fn mut_data(&mut self) -> &mut DATA {
         &mut self.data
     }
 }
 
-impl<ID, DATA> Binary for DynanicBinary<ID, DATA>
+impl<DATA> Binary for DynanicBinary<DATA>
 where
-    ID: Binary + Display,
     DATA: AsBinary,
 {
     fn from_bin(data: &[u8], path: &str) -> io::Result<Self> {
-        let id = ID::from_bin(data, path)?;
+        let id =
+            NonZero::new(usize::from_bin(data, path)?).ok_or(io::Error::other("id is zero"))?;
 
         let mut file = File::open(format!("{path}/dyn/{id}.bin"))?;
         let mut result = vec![0; file.metadata()?.len() as usize];
         file.read_exact(&mut result)?;
         Ok(DynanicBinary {
-            id,
+            id: Some(id),
             data: DATA::from_as_bin(result, path)?,
         })
     }
 
     fn as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
-        let mut file = File::create(format!("{path}/dyn/{}.bin", self.id))?;
+        let id = self.id.unwrap_or_else(move || unsafe {
+            NonZero::new_unchecked(
+                read_dir(format!("{path}/dyn"))
+                    .expect("need dyn dir")
+                    .count()
+                    + 1,
+            )
+        });
+        let mut file = File::create(format!("{path}/dyn/{id}.bin"))?;
         file.write_all(&self.data.as_as_bin(path)?)?;
         file.sync_all()?;
 
-        self.id.as_bin(path)
+        id.get().as_bin(path)
     }
 
     fn bin_size() -> usize {
-        ID::bin_size()
+        usize::bin_size()
     }
 
     fn delete(&self, path: &str) -> io::Result<()> {
-        remove_file(format!("{path}/dyn/{}.bin", self.id))
+        remove_file(format!("{path}/dyn/{}.bin", self.id_error()?))
     }
 }
 
 impl AsBinary for String {
     fn from_as_bin(data: Vec<u8>, _: &str) -> io::Result<Self> {
-        String::from_utf8(data).map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        String::from_utf8(data).map_err(io::Error::other)
     }
 
     fn as_as_bin(&self, _: &str) -> io::Result<Vec<u8>> {

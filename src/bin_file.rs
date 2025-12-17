@@ -1,6 +1,6 @@
 pub use crate::binary::Binary;
 use std::{
-    fs::{self, create_dir_all, remove_dir_all, File},
+    fs::{self, File, create_dir_all, remove_dir_all},
     io::{self, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
     path::Path,
@@ -29,7 +29,7 @@ where
         })
     }
 
-    pub fn new_default(path: &'a str, datas: impl Iterator<Item = Row>) -> std::io::Result<Self> {
+    pub fn new_default(path: &'a str, default: impl Iterator<Item = Row>) -> std::io::Result<Self> {
         let mut table = BinFile {
             path,
             phantom_row: PhantomData,
@@ -37,12 +37,12 @@ where
         if !Path::new(path).exists() {
             create_dir_all(format!("{path}/dyn"))?;
             File::create(format!("{path}/main.bin").as_str())?;
-            table.inserts(0, datas)?;
+            table.inserts(0, default)?;
         }
         Ok(table)
     }
 
-    pub const fn strict_new(path: &'a str) -> Self {
+    pub const unsafe fn strict_new(path: &'a str) -> Self {
         BinFile {
             path,
             phantom_row: PhantomData,
@@ -58,14 +58,11 @@ where
         let file_len = self.file_len()?;
 
         if (first_byte + Row::bin_size()) > file_len {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!(
-                    "first_byte:{} < file_len:{}",
-                    first_byte + Row::bin_size(),
-                    file_len
-                ),
-            ));
+            return Err(io::Error::other(format!(
+                "first_byte:{} < file_len:{}",
+                first_byte + Row::bin_size(),
+                file_len
+            )));
         }
         let mut result = vec![0; Row::bin_size()];
         {
@@ -83,25 +80,26 @@ where
         let len = if let Some(len) = len {
             let len = len * Row::bin_size();
             if (first_byte + len) > file_len {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("first_byte:{} < file_len:{}", first_byte + len, file_len),
-                ));
+                return Err(io::Error::other(format!(
+                    "first_byte:{} < file_len:{}",
+                    first_byte + len,
+                    file_len
+                )));
             }
             len
         } else {
             if first_byte > file_len {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("first_byte:{first_byte} < file_len:{file_len}"),
-                ));
+                return Err(io::Error::other(format!(
+                    "first_byte:{first_byte} < file_len:{file_len}"
+                )));
             }
             let len = file_len - first_byte;
-            if len % Row::bin_size() != 0 {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("len:{} not divisable by {}", len, Row::bin_size()),
-                ));
+            if !len.is_multiple_of(Row::bin_size()) {
+                return Err(io::Error::other(format!(
+                    "len:{} not divisable by {}",
+                    len,
+                    Row::bin_size()
+                )));
             }
             len
         };

@@ -192,10 +192,7 @@ impl Binary for usize {
             32 => u32::from_bin(data, path).map(|r| r as usize),
             64 => u64::from_bin(data, path).map(|r| r as usize),
             128 => u128::from_bin(data, path).map(|r| r as usize),
-            _ => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "usize size not defined",
-            )),
+            _ => Err(io::Error::other("usize size not defined")),
         }
     }
     fn as_bin(&self, path: &str) -> io::Result<Vec<u8>> {
@@ -205,10 +202,7 @@ impl Binary for usize {
             32 => u32::as_bin(&(*self as u32), path),
             64 => u64::as_bin(&(*self as u64), path),
             128 => u128::as_bin(&(*self as u128), path),
-            _ => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "usize size not defined",
-            )),
+            _ => Err(io::Error::other("usize size not defined")),
         }
     }
     fn bin_size() -> usize {
