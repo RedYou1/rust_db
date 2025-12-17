@@ -1,5 +1,5 @@
 [package]
-name = "rust_db"
+name = "rust_db_macro"
 version = "0.1.0"
 edition = "2024"
 

@@ -1,5 +1,5 @@
 use crate::{bin_file::BinFile, binary::Binary};
-pub use rust_db::TableRow;
+pub use rust_db_macro::TableRow;
 use std::{io, marker::PhantomData};
 
 pub trait TableRow<ID>: Binary

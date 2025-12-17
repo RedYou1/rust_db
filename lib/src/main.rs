@@ -1,8 +1,3 @@
-mod bin_file;
-mod binary;
-mod dyn_binary;
-mod foreign;
-mod table;
 mod test;
 mod test_table;
 

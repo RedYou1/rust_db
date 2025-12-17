@@ -3,10 +3,10 @@ use std::fs::remove_dir_all;
 use std::io;
 use std::path::Path;
 
-use crate::binary::Binary;
-use crate::dyn_binary::DynanicBinary;
-use crate::foreign::Foreign;
-use crate::table::{Table, TableRow};
+use rust_db::binary::Binary;
+use rust_db::dyn_binary::DynanicBinary;
+use rust_db::foreign::Foreign;
+use rust_db::table::{Table, TableRow};
 
 #[derive(Debug, Clone, PartialEq, TableRow)]
 struct Client {

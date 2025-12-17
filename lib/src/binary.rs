@@ -1,6 +1,6 @@
 use std::io;
 
-pub use rust_db::Binary;
+pub use rust_db_macro::Binary;
 
 use crate::dyn_binary::AsBinary;
 

@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use crate::{
+use rust_db::{
     bin_file::{BinFile, Binary},
     dyn_binary::DynanicBinary,
 };
