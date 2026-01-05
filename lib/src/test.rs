@@ -1,13 +1,6 @@
-use std::{
-    collections::HashMap,
-    fs::{read_dir, remove_dir_all},
-    path::Path,
-};
+use std::{collections::HashMap, fs::read_dir};
 
-use rust_db::{
-    bin_file::{BinFile, Binary},
-    dyn_binary::DynanicBinary,
-};
+use crate::{bd_path::BDPath, bin_file::BinFile, binary::Binary, dyn_binary::DynanicBinary};
 
 #[derive(Debug, Clone, PartialEq, Binary)]
 struct Test {
@@ -18,40 +11,20 @@ struct Test {
     e: DynanicBinary<HashMap<u32, u32>>,
 }
 
-fn nb_dyns(path: &str) -> usize {
-    read_dir(format!("{path}/dyn"))
-        .expect("dyn path doesn't exists")
-        .count()
+fn nb_dyns(path: &BDPath) -> std::io::Result<usize> {
+    read_dir(path.dyn_path()).map(|f| f.count())
 }
 
+#[test]
 pub fn test_path() {
-    const TABLE_PATH: &str = "test/testPath";
-    let table = BinFile::<Test>::new(TABLE_PATH).expect("TABLE_PATH failed");
-    assert_eq!(TABLE_PATH, table.path());
+    let path: BDPath = BDPath::new_main_str("test/testPath");
+    let table = BinFile::<Test>::new(path.clone()).expect("TABLE_PATH failed");
+    assert_eq!(path, *table.path());
 }
+
 #[test]
-fn run_test_path() {
-    test_path();
-}
-
-pub fn test_default() {
-    const TABLE_PATH: &str = "test/testDefault";
-    let datas = vec![1, 6, 7];
-
-    if Path::new(TABLE_PATH).exists() {
-        remove_dir_all(TABLE_PATH).expect("TABLE_PATH doent exists");
-    }
-    let table = BinFile::<u8>::new_default(TABLE_PATH, datas.clone().into_iter())
-        .expect("failed to new_default");
-    assert_eq!(datas, table.gets(0, None).expect("failed to gets"));
-}
-#[test]
-fn run_test_default() {
-    test_default();
-}
-
 pub fn test1() {
-    const TABLE_PATH: &str = "test/test1";
+    let path: BDPath = BDPath::new_main_str("test/test1");
     let mut test1 = Test {
         a: [5, 255, 1_000_000],
         b: 1_000_000,
@@ -67,10 +40,10 @@ pub fn test1() {
         e: DynanicBinary::new([(5, 4), (3, 2)].into_iter().collect()),
     };
 
-    let mut table = BinFile::<Test>::new(TABLE_PATH).expect("failed to new");
+    let mut table = BinFile::<Test>::new(path.clone()).expect("failed to new");
     table.clear().expect("failed to clear");
     assert_eq!(0, table.len().expect("failed len"));
-    assert_eq!(0, nb_dyns(TABLE_PATH));
+    assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
 
     assert_eq!("Salut", test1.c.data());
     *test1.c.mut_data() = String::from("Salut2");
@@ -80,59 +53,56 @@ pub fn test1() {
         .inserts(0, [test2.clone(), test1.clone()].into_iter())
         .expect("failed inserts");
     assert_eq!(2, table.len().expect("failed len"));
-    assert_eq!(4, nb_dyns(TABLE_PATH));
+    assert_eq!(4, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test2, table.get(0).expect("failed to get"));
     assert_eq!(test1, table.get(1).expect("failed to get"));
 
-    let mut table = unsafe { BinFile::<Test>::strict_new(TABLE_PATH) };
+    let mut table = BinFile::<Test>::new(path.clone()).expect("NEW");
     assert_eq!(2, table.len().expect("failed len"));
-    assert_eq!(4, nb_dyns(TABLE_PATH));
+    assert_eq!(4, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test2, table.get(0).expect("failed to get"));
     assert_eq!(test1, table.get(1).expect("failed to get"));
     table.remove(0, Some(1)).expect("failed remove");
     assert_eq!(1, table.len().expect("failed len"));
-    assert_eq!(2, nb_dyns(TABLE_PATH));
+    assert_eq!(2, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test1, table.get(0).expect("failed to get"));
 
-    let mut table = unsafe { BinFile::<Test>::strict_new(TABLE_PATH) };
+    let mut table = BinFile::<Test>::new(path.clone()).expect("NEW");
     assert_eq!(1, table.len().expect("failed len"));
-    assert_eq!(2, nb_dyns(TABLE_PATH));
+    assert_eq!(2, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test1, table.get(0).expect("failed to get"));
     table.remove(0, None).expect("failed remove");
     assert_eq!(0, table.len().expect("failed len"));
-    assert_eq!(0, nb_dyns(TABLE_PATH));
+    assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
 
-    let table = unsafe { BinFile::<Test>::strict_new(TABLE_PATH) };
+    let table = BinFile::<Test>::new(path.clone()).expect("NEW");
     assert_eq!(0, table.len().expect("failed len"));
-    assert_eq!(0, nb_dyns(TABLE_PATH));
-}
-#[test]
-fn run_test1() {
-    test1();
+    assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
 }
 
+#[test]
 pub fn test2() {
-    const TABLE_PATH: &str = "test/test2";
+    let path: BDPath = BDPath::new_main_str("test/test2");
 
     let mut a = DynanicBinary::new(b'b');
     *a.mut_data() = b'a';
     let b = DynanicBinary::new(b'b');
     let c = DynanicBinary::new(b'c');
 
-    let mut table = BinFile::<DynanicBinary<u8>>::new(TABLE_PATH).expect("failed new");
+    let mut table = BinFile::<DynanicBinary<u8>>::new(path.clone()).expect("failed new");
     table.clear().expect("failed clear");
     assert_eq!(0, table.len().expect("failed len"));
-    assert_eq!(0, nb_dyns(TABLE_PATH));
+    assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
 
-    table.insert(0, a.clone()).expect("failed insert");
+    table.insert(0, &mut a).expect("failed insert");
     assert_eq!(1, table.len().expect("failed len"));
-    assert_eq!(1, nb_dyns(TABLE_PATH));
+    assert_eq!(1, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(a.clone(), table.get(0).expect("failed to get"));
 
     table
         .inserts(0, [b.clone(), c.clone()].into_iter())
         .expect("failed inserts");
-    assert_eq!(3, nb_dyns(TABLE_PATH));
+    assert_eq!(3, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(
         vec![b.clone(), c.clone(), a.clone()],
         table.gets(0, None).expect("failed to gets")
@@ -147,7 +117,7 @@ pub fn test2() {
     );
 
     table.remove(1, Some(1)).expect("failed to remove");
-    assert_eq!(2, nb_dyns(TABLE_PATH));
+    assert_eq!(2, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(
         vec![b.clone(), a.clone()],
         table.gets(0, None).expect("failed to gets")
@@ -155,9 +125,5 @@ pub fn test2() {
 
     table.remove(0, None).expect("failed to remove");
     assert_eq!(0, table.len().expect("failed len"));
-    assert_eq!(0, nb_dyns(TABLE_PATH));
-}
-#[test]
-fn run_test2() {
-    test2();
+    assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
 }

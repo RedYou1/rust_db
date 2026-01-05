@@ -20,3 +20,4 @@ map_unwrap_or = "warn"
 
 [dependencies]
 rust_db_macro = { path = "../macro" }
+rand = "=0.9"

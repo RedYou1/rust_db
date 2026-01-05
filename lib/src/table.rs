@@ -1,87 +1,161 @@
-use crate::{bin_file::BinFile, binary::Binary};
-pub use rust_db_macro::TableRow;
-use std::{io, marker::PhantomData};
+use crate::{
+    bd_path::BDPath,
+    bin_file::BinFile,
+    binary::Binary,
+    index_file::{IdAsIndexFile, Index, IndexFile, IndexGet, UnspecifiedIndex},
+};
+pub use rust_db_macro::Table;
+use std::{
+    cmp::Ordering,
+    fs::{create_dir, remove_dir_all},
+    io::{self, Error},
+};
 
-pub trait TableRow<ID>: Binary
+pub trait Table: Binary + Clone
 where
-    ID: Binary + PartialEq,
+    Self::ID: Binary + PartialOrd<Self::ID>,
 {
-    fn id(&self) -> &ID;
+    type ID;
+
+    fn id(&self) -> &Self::ID;
+    fn id_cmp(&self, other: &Self::ID) -> Option<Ordering> {
+        self.id().partial_cmp(other)
+    }
+    fn get_indexes(path: String) -> io::Result<Vec<Box<dyn UnspecifiedIndex<Self>>>>;
 }
 
-pub struct Table<'a, Row, ID>
-where
-    ID: Binary + PartialEq,
-    Row: TableRow<ID>,
-{
-    bin: BinFile<'a, Row>,
-    phantom_id: PhantomData<ID>,
+#[derive(Debug)]
+pub enum TableGet<Ok> {
+    Found(Ok),
+    NotFound,
+    InternalError(String),
+    Err(io::Error),
 }
 
-impl<'a, Row, ID> Table<'a, Row, ID>
+pub struct TableFile<Row>
 where
-    ID: Binary + PartialEq,
-    Row: TableRow<ID>,
+    Row: Table,
 {
-    pub fn new(path: &'a str) -> io::Result<Self> {
-        Ok(Table {
-            bin: BinFile::new(path)?,
-            phantom_id: PhantomData,
+    bin: BinFile<Row>,
+    id_index: IdAsIndexFile<Row::ID, Row>,
+    other_index: Vec<Box<dyn UnspecifiedIndex<Row>>>,
+}
+
+impl<Row> TableFile<Row>
+where
+    Row: Table,
+{
+    pub fn new(path: String) -> io::Result<Self> {
+        let path = BDPath {
+            dir_path: path,
+            rel_file_path: "main.bin".to_owned(),
+        };
+        Ok(TableFile {
+            other_index: Table::get_indexes(path.dir_path.clone())?,
+            bin: BinFile::new(path.clone())?,
+            id_index: IdAsIndexFile::new(path, Box::new(Row::id_cmp))?,
         })
     }
 
-    pub fn new_default(path: &'a str, datas: impl Iterator<Item = Row>) -> std::io::Result<Self> {
-        Ok(Table {
-            bin: BinFile::new_default(path, datas)?,
-            phantom_id: PhantomData,
-        })
+    pub fn get_by_index(&self, index: usize) -> io::Result<Row> {
+        self.bin.get(index)
     }
 
-    pub const unsafe fn strict_new(path: &'a str) -> Self {
-        Table {
-            bin: unsafe { BinFile::strict_new(path) },
-            phantom_id: PhantomData,
+    pub fn get_by_id(&self, id: &Row::ID) -> TableGet<Row> {
+        match &match self.id_index.indx(id) {
+            IndexGet::Found(_, index) => index,
+            IndexGet::NotFound(_) => return TableGet::NotFound,
+            IndexGet::InternalError(e) => return TableGet::InternalError(e),
+            IndexGet::Err(e) => return TableGet::Err(e),
+        }[..]
+        {
+            [] => TableGet::InternalError("index returned an empty array".to_owned()),
+            [data] => TableGet::Found(data.clone()),
+            _ => TableGet::InternalError("multiple with the same id".to_owned()),
         }
-    }
-
-    pub fn get(&self, id: &ID) -> io::Result<Row> {
-        self.bin
-            .gets(0, None)?
-            .into_iter()
-            .find(|row| *row.id() == *id)
-            .ok_or(io::Error::other("Element not found"))
     }
 
     pub fn get_all(&self) -> io::Result<Vec<Row>> {
         self.bin.gets(0, None)
     }
 
+    pub fn is_empty(&self) -> io::Result<bool> {
+        self.bin.is_empty()
+    }
+
     pub fn len(&self) -> io::Result<usize> {
         self.bin.len()
     }
 
-    pub fn insert(&mut self, data: Row) -> std::io::Result<()> {
-        self.bin.insert(self.len()?, data)
+    pub fn insert(&mut self, data: &mut Row) -> std::io::Result<()> {
+        for index_file in &mut self.other_index {
+            if index_file.check_unique(data)?.is_none() {
+                return Err(Error::other("unique index not satisfied already exists"));
+            }
+        }
+
+        let index = match self.id_index.indx(data.id()) {
+            IndexGet::Found(_, _) => return Err(Error::other("other with same id found")),
+            IndexGet::NotFound(i) => i,
+            IndexGet::InternalError(e) => return Err(Error::other(e)),
+            IndexGet::Err(e) => return Err(e),
+        };
+
+        self.bin.insert(index, data)?;
+        for index_file in &mut self.other_index {
+            index_file.insert(index, data)?;
+        }
+        Ok(())
     }
 
-    pub fn inserts(&mut self, datas: impl Iterator<Item = Row>) -> std::io::Result<()> {
-        self.bin.inserts(self.len()?, datas)
-    }
-
-    pub fn remove(&mut self, id: &ID) -> std::io::Result<()> {
-        self.bin.remove(
-            self.bin
-                .gets(0, None)?
-                .into_iter()
-                .enumerate()
-                .find(|(_, row)| *row.id() == *id)
-                .ok_or(io::Error::other("Element not found"))?
-                .0,
-            Some(1),
-        )
+    pub fn remove(&mut self, id: &Row::ID) -> std::io::Result<()> {
+        let (index, datas) = match self.id_index.indx(id) {
+            IndexGet::Found(index, datas) => (index, datas),
+            IndexGet::NotFound(_) => return Err(Error::other("remove not found")),
+            IndexGet::InternalError(e) => return Err(Error::other(e)),
+            IndexGet::Err(e) => return Err(e),
+        };
+        match &datas[..] {
+            [] => Err(Error::other("index returned an empty array")),
+            [_] => {
+                for index_file in &mut self.other_index {
+                    index_file.remove(index)?;
+                }
+                self.bin.remove(index, Some(1))?;
+                Ok(())
+            }
+            _ => Err(Error::other("multiple with the same id")),
+        }
     }
 
     pub fn clear(&mut self) -> io::Result<()> {
-        self.bin.clear()
+        self.bin.clear()?;
+        remove_dir_all(self.bin.path().dyn_path())?;
+        create_dir(self.bin.path().dyn_path())?;
+        for index_file in &mut self.other_index {
+            index_file.clear()?;
+        }
+        Ok(())
+    }
+
+    /// # Safety
+    /// Don't call it by yourself.
+    /// It is used by the Table macro.
+    pub unsafe fn get_index_file<ColType: Binary + PartialOrd>(
+        &self,
+        index: usize,
+    ) -> &IndexFile<ColType, Row> {
+        unsafe {
+            (self.other_index[index].as_ref() as *const dyn UnspecifiedIndex<Row>
+                as *const IndexFile<ColType, Row>)
+                .as_ref()
+                .expect("downcast of index file in table.")
+        }
+    }
+}
+
+impl<Row: Table> AsRef<BinFile<Row>> for TableFile<Row> {
+    fn as_ref(&self) -> &BinFile<Row> {
+        &self.bin
     }
 }

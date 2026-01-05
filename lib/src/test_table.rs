@@ -3,20 +3,23 @@ use std::fs::remove_dir_all;
 use std::io;
 use std::path::Path;
 
-use rust_db::binary::Binary;
-use rust_db::dyn_binary::DynanicBinary;
-use rust_db::foreign::Foreign;
-use rust_db::table::{Table, TableRow};
+use crate::bd_path::BDPath;
+use crate::binary::Binary;
+use crate::dyn_binary::DynanicBinary;
+use crate::foreign::Foreign;
+use crate::index_file::{Index, IndexFile, IndexGet, UnspecifiedIndex};
+use crate::table::{Table, TableFile, TableGet};
 
-#[derive(Debug, Clone, PartialEq, TableRow)]
+#[derive(Debug, Clone, PartialEq, Table)]
 struct Client {
     #[PrimaryKey]
     id: usize,
+    #[Index]
     nom: DynanicBinary<String>,
-    entreprise: Foreign<usize, Entreprise>,
+    entreprise: Foreign<Entreprise>,
 }
 
-#[derive(Debug, Clone, PartialEq, TableRow)]
+#[derive(Debug, Clone, PartialEq, Table)]
 struct Entreprise {
     #[PrimaryKey]
     id: usize,
@@ -24,11 +27,13 @@ struct Entreprise {
     employe: DynanicBinary<HashMap<u8, [char; 4]>>,
 }
 
+#[expect(clippy::too_many_lines)]
+#[test]
 pub fn test_table_get() {
     const CLIENTS_PATH: &str = "test/test_tableGetClients";
     const ENTREPRISES_PATH: &str = "test/test_tableGetEntreprises";
 
-    let entreprises = [
+    let mut entreprises = [
         Entreprise {
             id: 1,
             nom: DynanicBinary::new(String::from("BigTech")),
@@ -49,7 +54,7 @@ pub fn test_table_get() {
         },
     ];
 
-    let clients = [
+    let mut clients = [
         Client {
             id: 1,
             nom: DynanicBinary::new(String::from("Bob")),
@@ -70,17 +75,24 @@ pub fn test_table_get() {
     if Path::new(CLIENTS_PATH).exists() {
         remove_dir_all(CLIENTS_PATH).expect("CLIENTS_PATH already exists");
     }
-    let table_clients = Table::new_default(CLIENTS_PATH, clients.clone().into_iter())
-        .expect("failed to create table_clients");
+    let mut table_clients =
+        TableFile::new(CLIENTS_PATH.to_owned()).expect("failed to create table_clients");
+    for client in clients.iter_mut() {
+        table_clients
+            .insert(client)
+            .expect("failed to insert client");
+    }
 
     if Path::new(ENTREPRISES_PATH).exists() {
         remove_dir_all(ENTREPRISES_PATH).expect("ENTREPRISES_PATH already exists");
     }
     let mut table_entreprises =
-        Table::new(ENTREPRISES_PATH).expect("failed to create table_entreprises");
-    table_entreprises
-        .inserts(entreprises.clone().into_iter())
-        .expect("failed to insert entreprises");
+        TableFile::new(ENTREPRISES_PATH.to_owned()).expect("failed to create table_entreprises");
+    for entreprise in entreprises.iter_mut() {
+        table_entreprises
+            .insert(entreprise)
+            .expect("failed to insert entreprises");
+    }
 
     for (a, b) in entreprises
         .iter()
@@ -103,32 +115,78 @@ pub fn test_table_get() {
     for client in table_clients.get_all().expect("client doesnt exists") {
         assert!(client.nom.id().is_some());
         assert_eq!(
-            client
-                .entreprise
-                .data(&table_entreprises)
-                .expect("entreprise doesnt exists")
-                .nom,
-            table_entreprises
-                .get(client.entreprise.id())
-                .expect("entreprise doesnt exists")
-                .nom
+            match client.entreprise.data(&table_entreprises) {
+                TableGet::Found(f) => f,
+                e => panic!("get client.entreprise.data {e:?}"),
+            }
+            .nom,
+            match table_entreprises.get_by_id(client.entreprise.id()) {
+                TableGet::Found(f) => f,
+                e => panic!("get table_entreprises.get_by_id {e:?}"),
+            }
+            .nom
         );
     }
+
+    match table_clients.get_by_nom(&DynanicBinary::new(String::from("Will"))) {
+        TableGet::Found(clients) => {
+            assert_eq!(1, clients.len());
+            assert_eq!(3, clients[0].id);
+            assert_eq!("Will", clients[0].nom.data());
+            assert_eq!(2, *clients[0].entreprise.id());
+        }
+        TableGet::NotFound => panic!("client Will suppossed to be found"),
+        TableGet::InternalError(error) => panic!("{error}"),
+        TableGet::Err(error) => panic!("{error:?}"),
+    }
+    table_clients
+        .insert(&mut Client {
+            id: 4,
+            nom: DynanicBinary::new(String::from("Will")),
+            entreprise: Foreign::new(2),
+        })
+        .expect("insert");
+    match table_clients.get_by_nom(&DynanicBinary::new(String::from("Will"))) {
+        TableGet::Found(clients) => {
+            assert_eq!(2, clients.len());
+            assert_eq!(3, clients[0].id);
+            assert_eq!("Will", clients[0].nom.data());
+            assert_eq!(2, *clients[0].entreprise.id());
+
+            assert_eq!(4, clients[1].id);
+            assert_eq!("Will", clients[1].nom.data());
+            assert_eq!(2, *clients[1].entreprise.id());
+        }
+        TableGet::NotFound => panic!("client Will suppossed to be found"),
+        TableGet::InternalError(error) => panic!("{error}"),
+        TableGet::Err(error) => panic!("{error:?}"),
+    }
+    table_clients.remove(&3).expect("remove");
+    match table_clients.get_by_nom(&DynanicBinary::new(String::from("Will"))) {
+        TableGet::Found(clients) => {
+            assert_eq!(1, clients.len());
+            assert_eq!(4, clients[0].id);
+            assert_eq!("Will", clients[0].nom.data());
+            assert_eq!(2, *clients[0].entreprise.id());
+        }
+        TableGet::NotFound => panic!("client Will suppossed to be found"),
+        TableGet::InternalError(error) => panic!("{error}"),
+        TableGet::Err(error) => panic!("{error:?}"),
+    }
+    match table_clients.get_by_nom(&DynanicBinary::new(String::from("NONE"))) {
+        TableGet::Found(_) => panic!("client NONE not suppossed to be found"),
+        TableGet::NotFound => {}
+        TableGet::InternalError(error) => panic!("{error}"),
+        TableGet::Err(error) => panic!("{error:?}"),
+    }
+
     table_entreprises
         .clear()
         .expect("failed to clear entreprise");
     for client in table_clients.get_all().expect("client doesnt exists") {
-        assert_eq!(
-            client
-                .entreprise
-                .data(&table_entreprises)
-                .expect_err("entreprise does exists")
-                .kind(),
-            io::ErrorKind::Other
-        );
+        match client.entreprise.data(&table_entreprises) {
+            TableGet::NotFound => {}
+            e => panic!("not empty {e:?}"),
+        }
     }
-}
-#[test]
-fn run_test_table_get() {
-    test_table_get();
 }

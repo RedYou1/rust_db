@@ -1,65 +1,66 @@
-use std::{io, marker::PhantomData};
-
 use crate::{
-    binary::Binary,
-    table::{Table, TableRow},
+    bd_path::BDPath, binary::Binary, table::{Table, TableFile, TableGet}
 };
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct Foreign<ID, Row>
+#[derive(Debug, Clone)]
+pub struct Foreign<Row>
 where
-    ID: Binary + PartialEq,
-    Row: TableRow<ID>,
+    Row: Table,
 {
-    id: ID,
-    phantom_data: PhantomData<Row>,
+    id: Row::ID,
 }
 
-impl<ID, Row> Binary for Foreign<ID, Row>
+impl<Row: Table> PartialEq for Foreign<Row>{
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl<Row: Table> PartialOrd for Foreign<Row>{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id().partial_cmp(other.id())
+    }
+}
+
+impl<Row> Binary for Foreign<Row>
 where
-    ID: Binary + PartialEq,
-    Row: TableRow<ID>,
+    Row: Table,
 {
-    fn from_bin(data: &[u8], path: &str) -> std::io::Result<Self>
+    fn from_bin(data: &[u8], path: &BDPath) -> std::io::Result<Self>
     where
         Self: Sized,
     {
         Ok(Foreign {
-            id: ID::from_bin(data, path)?,
-            phantom_data: PhantomData,
+            id: Row::ID::from_bin(data, path)?,
         })
     }
 
-    fn as_bin(&self, path: &str) -> std::io::Result<Vec<u8>> {
+    fn as_bin(&mut self, path: &BDPath) -> std::io::Result<Vec<u8>> {
         self.id.as_bin(path)
     }
 
     fn bin_size() -> usize {
-        ID::bin_size()
+        Row::ID::bin_size()
     }
 
-    fn delete(&self, _: &str) -> std::io::Result<()> {
+    fn delete(&self, _: &BDPath) -> std::io::Result<()> {
         Ok(())
     }
 }
 
-impl<ID, Row> Foreign<ID, Row>
+impl<Row> Foreign<Row>
 where
-    ID: Binary + PartialEq,
-    Row: TableRow<ID>,
+    Row: Table,
 {
-    pub const fn new(id: ID) -> Self {
-        Foreign {
-            id,
-            phantom_data: PhantomData,
-        }
+    pub const fn new(id: Row::ID) -> Self {
+        Foreign { id }
     }
 
-    pub const fn id(&self) -> &ID {
+    pub const fn id(&self) -> &Row::ID {
         &self.id
     }
 
-    pub fn data(&self, table: &Table<Row, ID>) -> io::Result<Row> {
-        table.get(&self.id)
+    pub fn data(&self, table: &TableFile<Row>) -> TableGet<Row> {
+        table.get_by_id(&self.id)
     }
 }
