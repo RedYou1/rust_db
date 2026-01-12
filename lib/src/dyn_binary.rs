@@ -30,10 +30,8 @@ impl<DATA: AsBinary + PartialOrd> PartialOrd for DynanicBinary<DATA> {
     }
 }
 
-pub trait AsBinary {
-    fn from_as_bin(data: Vec<u8>, path: &BDPath) -> io::Result<Self>
-    where
-        Self: Sized;
+pub trait AsBinary: Sized {
+    fn from_as_bin(data: Vec<u8>, path: &BDPath) -> io::Result<Self>;
     fn as_as_bin(&mut self, path: &BDPath) -> io::Result<Vec<u8>>;
 }
 
