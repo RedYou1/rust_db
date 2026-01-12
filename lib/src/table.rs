@@ -1,8 +1,9 @@
 use crate::{
     bd_path::BDPath,
-    bin_file::BinFile,
+    bin_file::BaseBinFile,
     binary::Binary,
     index_file::{IdAsIndexFile, Index, IndexFile, IndexGet, UnspecifiedIndex},
+    prelude::{BinFile, CachedBinFile},
 };
 pub use rust_db_macro::Table;
 use std::{
@@ -32,25 +33,22 @@ pub enum TableGet<Ok> {
     Err(io::Error),
 }
 
-pub struct TableFile<Row>
-where
-    Row: Table,
-{
-    bin: BinFile<Row>,
+pub type TableFile<Row> = SpecificTableFile<Row, BinFile<Row>>;
+pub type CachedTableFile<Row> = SpecificTableFile<Row, CachedBinFile<Row>>;
+
+pub struct SpecificTableFile<Row: Table, RowBinFile: BaseBinFile<Row>> {
+    bin: RowBinFile,
     id_index: IdAsIndexFile<Row::ID, Row>,
     other_index: Vec<Box<dyn UnspecifiedIndex<Row>>>,
 }
 
-impl<Row> TableFile<Row>
-where
-    Row: Table,
-{
+impl<Row: Table, BinFile: BaseBinFile<Row>> SpecificTableFile<Row, BinFile> {
     pub fn new(path: String) -> io::Result<Self> {
         let path = BDPath {
             dir_path: path,
             rel_file_path: "main.bin".to_owned(),
         };
-        Ok(TableFile {
+        Ok(Self {
             other_index: Table::get_indexes(path.dir_path.clone())?,
             bin: BinFile::new(path.clone())?,
             id_index: IdAsIndexFile::new(path, Box::new(Row::id_cmp))?,
@@ -87,15 +85,15 @@ where
         self.bin.len()
     }
 
-    pub fn insert(&mut self, data: &mut Row) -> std::io::Result<()> {
+    pub fn insert(&mut self, data: &mut Row) -> std::io::Result<bool> {
         for index_file in &mut self.other_index {
             if index_file.check_unique(data)?.is_none() {
-                return Err(Error::other("unique index not satisfied already exists"));
+                return Ok(false);
             }
         }
 
         let index = match self.id_index.indx(data.id()) {
-            IndexGet::Found(_, _) => return Err(Error::other("other with same id found")),
+            IndexGet::Found(_, _) => return Ok(false),
             IndexGet::NotFound(i) => i,
             IndexGet::InternalError(e) => return Err(Error::other(e)),
             IndexGet::Err(e) => return Err(e),
@@ -105,7 +103,7 @@ where
         for index_file in &mut self.other_index {
             index_file.insert(index, data)?;
         }
-        Ok(())
+        Ok(true)
     }
 
     pub fn remove(&mut self, id: &Row::ID) -> std::io::Result<()> {
@@ -154,8 +152,27 @@ where
     }
 }
 
-impl<Row: Table> AsRef<BinFile<Row>> for TableFile<Row> {
-    fn as_ref(&self) -> &BinFile<Row> {
+impl<Row: Table> CachedTableFile<Row> {
+    pub fn remove_from_cache(&mut self, id: &<Row as Table>::ID) -> TableGet<()> {
+        let (index, datas) = match self.id_index.indx(id) {
+            IndexGet::Found(index, datas) => (index, datas),
+            IndexGet::NotFound(_) => return TableGet::InternalError("remove not found".to_owned()),
+            IndexGet::InternalError(e) => return TableGet::InternalError(e),
+            IndexGet::Err(e) => return TableGet::Err(e),
+        };
+        match &datas[..] {
+            [] => TableGet::InternalError("index returned an empty array".to_owned()),
+            [_] => {
+                self.bin.remove_from_cache(index, Some(1));
+                TableGet::Found(())
+            }
+            _ => TableGet::InternalError("multiple with the same id".to_owned()),
+        }
+    }
+}
+
+impl<Row: Table, BinFile: BaseBinFile<Row>> AsRef<BinFile> for SpecificTableFile<Row, BinFile> {
+    fn as_ref(&self) -> &BinFile {
         &self.bin
     }
 }

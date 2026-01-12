@@ -1,31 +1,28 @@
 use crate::{
-    bd_path::BDPath, binary::Binary, table::{Table, TableFile, TableGet}
+    bd_path::BDPath,
+    binary::Binary,
+    prelude::BaseBinFile,
+    table::{SpecificTableFile, Table, TableGet},
 };
 
 #[derive(Debug, Clone)]
-pub struct Foreign<Row>
-where
-    Row: Table,
-{
+pub struct Foreign<Row: Table> {
     id: Row::ID,
 }
 
-impl<Row: Table> PartialEq for Foreign<Row>{
+impl<Row: Table> PartialEq for Foreign<Row> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
 
-impl<Row: Table> PartialOrd for Foreign<Row>{
+impl<Row: Table> PartialOrd for Foreign<Row> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.id().partial_cmp(other.id())
     }
 }
 
-impl<Row> Binary for Foreign<Row>
-where
-    Row: Table,
-{
+impl<Row: Table> Binary for Foreign<Row> {
     fn from_bin(data: &[u8], path: &BDPath) -> std::io::Result<Self>
     where
         Self: Sized,
@@ -48,10 +45,7 @@ where
     }
 }
 
-impl<Row> Foreign<Row>
-where
-    Row: Table,
-{
+impl<Row: Table> Foreign<Row> {
     pub const fn new(id: Row::ID) -> Self {
         Foreign { id }
     }
@@ -60,7 +54,10 @@ where
         &self.id
     }
 
-    pub fn data(&self, table: &TableFile<Row>) -> TableGet<Row> {
+    pub fn data<BinFile: BaseBinFile<Row>>(
+        &self,
+        table: &SpecificTableFile<Row, BinFile>,
+    ) -> TableGet<Row> {
         table.get_by_id(&self.id)
     }
 }

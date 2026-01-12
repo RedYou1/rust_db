@@ -268,7 +268,7 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
         trait #trait_name {
             #(#get_indexes_functions_signature)*
         }
-        impl #trait_name for TableFile<#struct_name> {
+        impl<BinFile: BaseBinFile<#struct_name>> #trait_name for SpecificTableFile<#struct_name, BinFile> {
             #(#get_indexes_functions)*
         }
     }

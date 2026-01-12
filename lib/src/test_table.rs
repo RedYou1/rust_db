@@ -1,14 +1,7 @@
 use std::collections::HashMap;
 use std::fs::remove_dir_all;
-use std::io;
-use std::path::Path;
 
-use crate::bd_path::BDPath;
-use crate::binary::Binary;
-use crate::dyn_binary::DynanicBinary;
-use crate::foreign::Foreign;
-use crate::index_file::{Index, IndexFile, IndexGet, UnspecifiedIndex};
-use crate::table::{Table, TableFile, TableGet};
+use crate::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Table)]
 struct Client {
@@ -76,22 +69,26 @@ pub fn test_table_get() {
         remove_dir_all(CLIENTS_PATH).expect("CLIENTS_PATH already exists");
     }
     let mut table_clients =
-        TableFile::new(CLIENTS_PATH.to_owned()).expect("failed to create table_clients");
+        CachedTableFile::new(CLIENTS_PATH.to_owned()).expect("failed to create table_clients");
     for client in clients.iter_mut() {
-        table_clients
-            .insert(client)
-            .expect("failed to insert client");
+        assert!(
+            table_clients
+                .insert(client)
+                .expect("failed to insert client")
+        );
     }
 
     if Path::new(ENTREPRISES_PATH).exists() {
         remove_dir_all(ENTREPRISES_PATH).expect("ENTREPRISES_PATH already exists");
     }
-    let mut table_entreprises =
-        TableFile::new(ENTREPRISES_PATH.to_owned()).expect("failed to create table_entreprises");
+    let mut table_entreprises = CachedTableFile::new(ENTREPRISES_PATH.to_owned())
+        .expect("failed to create table_entreprises");
     for entreprise in entreprises.iter_mut() {
-        table_entreprises
-            .insert(entreprise)
-            .expect("failed to insert entreprises");
+        assert!(
+            table_entreprises
+                .insert(entreprise)
+                .expect("failed to insert entreprises")
+        );
     }
 
     for (a, b) in entreprises
@@ -139,13 +136,15 @@ pub fn test_table_get() {
         TableGet::InternalError(error) => panic!("{error}"),
         TableGet::Err(error) => panic!("{error:?}"),
     }
-    table_clients
-        .insert(&mut Client {
-            id: 4,
-            nom: DynanicBinary::new(String::from("Will")),
-            entreprise: Foreign::new(2),
-        })
-        .expect("insert");
+    assert!(
+        table_clients
+            .insert(&mut Client {
+                id: 4,
+                nom: DynanicBinary::new(String::from("Will")),
+                entreprise: Foreign::new(2),
+            })
+            .expect("insert")
+    );
     match table_clients.get_by_nom(&DynanicBinary::new(String::from("Will"))) {
         TableGet::Found(clients) => {
             assert_eq!(2, clients.len());

@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::{bd_path::BDPath, bin_file::BinFile, binary::Binary};
+use crate::{bd_path::BDPath, bin_file::{BaseBinFile, BinFile}, binary::Binary};
 
 #[derive(Debug)]
 pub enum IndexGet<Row> {
@@ -114,12 +114,12 @@ impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
             },
         );
         self.index.bin.clear()?;
-        self.index.bin.inserts(0, datas.into_iter())?;
+        self.index.bin.inserts(0, &mut datas)?;
         Ok(())
     }
 
     fn remove(&mut self, index: usize) -> std::io::Result<()> {
-        let datas = self
+        let mut datas = self
             .index
             .bin
             .gets(0, None)?
@@ -138,7 +138,7 @@ impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
             })
             .collect::<Vec<IndexRow<ColType>>>();
         self.index.bin.clear()?;
-        self.index.bin.inserts(0, datas.into_iter())?;
+        self.index.bin.inserts(0, &mut datas)?;
         Ok(())
     }
 

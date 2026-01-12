@@ -1,9 +1,14 @@
-use std::{collections::HashMap, fs::read_dir};
+use std::{collections::HashMap, fmt::Debug, fs::read_dir};
 
-use crate::{bd_path::BDPath, bin_file::BinFile, binary::Binary, dyn_binary::DynanicBinary};
+use crate::{
+    bd_path::BDPath,
+    bin_file::{BaseBinFile, BinFile},
+    binary::Binary,
+    dyn_binary::DynanicBinary,
+};
 
 #[derive(Debug, Clone, PartialEq, Binary)]
-struct Test {
+pub struct Test {
     a: [u32; 3],
     b: i128,
     c: DynanicBinary<String>,
@@ -24,7 +29,12 @@ pub fn test_path() {
 
 #[test]
 pub fn test1() {
-    let path: BDPath = BDPath::new_main_str("test/test1");
+    base_test1(BDPath::new_main_str("test/test1"), |path| {
+        BinFile::new(path).expect("failed to new")
+    });
+}
+
+pub fn base_test1<BinFile: BaseBinFile<Test>>(path: BDPath, new: impl Fn(BDPath) -> BinFile) {
     let mut test1 = Test {
         a: [5, 255, 1_000_000],
         b: 1_000_000,
@@ -40,7 +50,7 @@ pub fn test1() {
         e: DynanicBinary::new([(5, 4), (3, 2)].into_iter().collect()),
     };
 
-    let mut table = BinFile::<Test>::new(path.clone()).expect("failed to new");
+    let mut table = new(path.clone());
     table.clear().expect("failed to clear");
     assert_eq!(0, table.len().expect("failed len"));
     assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
@@ -50,14 +60,14 @@ pub fn test1() {
     assert_eq!("Salut2", test1.c.data());
 
     table
-        .inserts(0, [test2.clone(), test1.clone()].into_iter())
+        .inserts(0, &mut [test2.clone(), test1.clone()])
         .expect("failed inserts");
     assert_eq!(2, table.len().expect("failed len"));
     assert_eq!(4, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test2, table.get(0).expect("failed to get"));
     assert_eq!(test1, table.get(1).expect("failed to get"));
 
-    let mut table = BinFile::<Test>::new(path.clone()).expect("NEW");
+    let mut table = new(path.clone());
     assert_eq!(2, table.len().expect("failed len"));
     assert_eq!(4, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test2, table.get(0).expect("failed to get"));
@@ -67,7 +77,7 @@ pub fn test1() {
     assert_eq!(2, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test1, table.get(0).expect("failed to get"));
 
-    let mut table = BinFile::<Test>::new(path.clone()).expect("NEW");
+    let mut table = new(path.clone());
     assert_eq!(1, table.len().expect("failed len"));
     assert_eq!(2, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(test1, table.get(0).expect("failed to get"));
@@ -75,21 +85,28 @@ pub fn test1() {
     assert_eq!(0, table.len().expect("failed len"));
     assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
 
-    let table = BinFile::<Test>::new(path.clone()).expect("NEW");
+    let table = new(path.clone());
     assert_eq!(0, table.len().expect("failed len"));
     assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
 }
 
 #[test]
 pub fn test2() {
-    let path: BDPath = BDPath::new_main_str("test/test2");
+    base_test2(BDPath::new_main_str("test/test2"), |path| {
+        BinFile::new(path).expect("failed to new")
+    });
+}
 
+pub fn base_test2<BinFile: BaseBinFile<DynanicBinary<u8>>>(
+    path: BDPath,
+    new: impl Fn(BDPath) -> BinFile,
+) {
     let mut a = DynanicBinary::new(b'b');
     *a.mut_data() = b'a';
     let b = DynanicBinary::new(b'b');
     let c = DynanicBinary::new(b'c');
 
-    let mut table = BinFile::<DynanicBinary<u8>>::new(path.clone()).expect("failed new");
+    let mut table = new(path.clone());
     table.clear().expect("failed clear");
     assert_eq!(0, table.len().expect("failed len"));
     assert_eq!(0, nb_dyns(&path).expect("nb_dyns"));
@@ -100,7 +117,7 @@ pub fn test2() {
     assert_eq!(a.clone(), table.get(0).expect("failed to get"));
 
     table
-        .inserts(0, [b.clone(), c.clone()].into_iter())
+        .inserts(0, &mut [b.clone(), c.clone()])
         .expect("failed inserts");
     assert_eq!(3, nb_dyns(&path).expect("nb_dyns"));
     assert_eq!(
