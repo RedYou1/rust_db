@@ -6,6 +6,7 @@ use crate::prelude::*;
 pub struct A {
     #[PrimaryKey]
     pub id: usize,
+    #[Cached]
     #[Unique]
     pub rel: Foreign<B>,
 }
@@ -14,6 +15,7 @@ pub struct A {
 pub struct B {
     #[PrimaryKey]
     pub id: usize,
+    #[Cached]
     #[Index]
     pub rel: Foreign<A>,
 }

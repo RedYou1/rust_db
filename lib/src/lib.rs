@@ -28,8 +28,11 @@ trait A: Sized {
 impl A for RangeInclusive<usize> {
     fn len(&self) -> Option<usize> {
         assert!(*self.end() >= *self.start());
-        let t = *self.end() - *self.start();
-        if t == usize::MAX { None } else { Some(t + 1) }
+        if *self.end() == usize::MAX {
+            None
+        } else {
+            Some(*self.end() - *self.start() + 1)
+        }
     }
 
     fn overlap(&self, other: &Self) -> Option<Self> {

@@ -4,7 +4,10 @@ use std::{
     marker::PhantomData,
 };
 
-use crate::{bd_path::BDPath, bin_file::{BaseBinFile, BinFile}, binary::Binary};
+use crate::{
+    bd_path::BDPath, bin_file::BaseBinFile, binary::Binary, cached_bin_file::CachedBinFile,
+    prelude::BinFile,
+};
 
 #[derive(Debug)]
 pub enum IndexGet<Row> {
@@ -20,7 +23,7 @@ impl<Row> From<io::Error> for IndexGet<Row> {
     }
 }
 
-#[derive(Binary)]
+#[derive(Binary, Clone)]
 pub struct IndexRow<ColType: Binary + PartialOrd> {
     pub data: ColType,
     pub index: usize,
@@ -31,50 +34,55 @@ pub trait UnspecifiedIndex<Row: Binary> {
     fn insert(&mut self, index: usize, row: &mut Row) -> io::Result<()>;
     fn remove(&mut self, index: usize) -> std::io::Result<()>;
     fn clear(&mut self) -> io::Result<()>;
-}
-pub trait Index<ColType: Binary + PartialOrd, Row: Binary> {
-    fn indx(&self, find: &ColType) -> IndexGet<Row>;
+    fn clear_cache(&mut self);
 }
 
-pub struct IndexFile<ColType: Binary + PartialOrd, Row: Binary> {
-    index: IdAsIndexFile<ColType, IndexRow<ColType>>,
+pub type IndexFile<ColType, Row> = SpecificIndexFile<ColType, Row, BinFile<IndexRow<ColType>>>;
+pub type CachedIndexFile<ColType, Row> =
+    SpecificIndexFile<ColType, Row, CachedBinFile<IndexRow<ColType>>>;
+
+pub struct SpecificIndexFile<
+    ColType: Binary + PartialOrd,
+    Row: Binary,
+    BinFile: BaseBinFile<IndexRow<ColType>>,
+> {
+    bin: BinFile,
+    index: IdAsIndexFile<ColType, IndexRow<ColType>, BinFile>,
     extract: Box<fn(&Row) -> &ColType>,
     check_unique: bool,
 }
 
-impl<ColType: Binary + PartialOrd, Row: Binary> IndexFile<ColType, Row> {
+impl<ColType: Binary + PartialOrd, Row: Binary, BinFile: BaseBinFile<IndexRow<ColType>>>
+    SpecificIndexFile<ColType, Row, BinFile>
+{
     pub fn new(
         path: BDPath,
         extract: Box<fn(&Row) -> &ColType>,
         check_unique: bool,
     ) -> io::Result<Self> {
         Ok(Self {
-            index: IdAsIndexFile::new(
-                path,
-                Box::new(|row: &IndexRow<ColType>, other: &ColType| row.data.partial_cmp(other)),
-            )?,
+            bin: BinFile::new(path)?,
+            index: IdAsIndexFile::new(Box::new(|row: &IndexRow<ColType>, other: &ColType| {
+                row.data.partial_cmp(other)
+            }))?,
             extract,
             check_unique,
         })
     }
-}
-impl<ColType: Binary + PartialOrd, Row: Binary> Index<ColType, IndexRow<ColType>>
-    for IndexFile<ColType, Row>
-{
-    fn indx(&self, find: &ColType) -> IndexGet<IndexRow<ColType>> {
-        self.index.indx(find)
+
+    pub fn indx(&self, find: &ColType) -> IndexGet<IndexRow<ColType>> {
+        self.index.indx(&self.bin, find)
     }
 }
-impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
-    for IndexFile<ColType, Row>
+impl<ColType: Binary + PartialOrd + Clone, Row: Binary, BinFile: BaseBinFile<IndexRow<ColType>>>
+    SpecificIndexFile<ColType, Row, BinFile>
 {
-    fn check_unique(&mut self, row: &mut Row) -> io::Result<Option<()>> {
+    fn base_check_unique(&mut self, row: &mut Row) -> io::Result<Option<()>> {
         Ok(if !self.check_unique {
             Some(())
         } else {
             let data = (self.extract)(row).clone();
             if self
-                .index
                 .bin
                 .gets(0, None)?
                 .iter()
@@ -89,9 +97,8 @@ impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
             }
         })
     }
-    fn insert(&mut self, index: usize, row: &mut Row) -> io::Result<()> {
+    fn base_insert(&mut self, index: usize, row: &mut Row) -> io::Result<()> {
         let mut datas = self
-            .index
             .bin
             .gets(0, None)?
             .into_iter()
@@ -113,14 +120,13 @@ impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
                 index,
             },
         );
-        self.index.bin.clear()?;
-        self.index.bin.inserts(0, &mut datas)?;
+        self.bin.clear()?;
+        self.bin.inserts(0, &mut datas)?;
         Ok(())
     }
 
-    fn remove(&mut self, index: usize) -> std::io::Result<()> {
+    fn base_remove(&mut self, index: usize) -> std::io::Result<()> {
         let mut datas = self
-            .index
             .bin
             .gets(0, None)?
             .into_iter()
@@ -137,51 +143,101 @@ impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
                 }
             })
             .collect::<Vec<IndexRow<ColType>>>();
-        self.index.bin.clear()?;
-        self.index.bin.inserts(0, &mut datas)?;
+        self.bin.clear()?;
+        self.bin.inserts(0, &mut datas)?;
         Ok(())
     }
 
+    fn base_clear(&mut self) -> io::Result<()> {
+        self.bin.clear()
+    }
+}
+impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
+    for SpecificIndexFile<ColType, Row, BinFile<IndexRow<ColType>>>
+{
+    fn check_unique(&mut self, row: &mut Row) -> io::Result<Option<()>> {
+        self.base_check_unique(row)
+    }
+    fn insert(&mut self, index: usize, row: &mut Row) -> io::Result<()> {
+        self.base_insert(index, row)
+    }
+    fn remove(&mut self, index: usize) -> std::io::Result<()> {
+        self.base_remove(index)
+    }
     fn clear(&mut self) -> io::Result<()> {
-        self.index.bin.clear()
+        self.base_clear()
+    }
+    fn clear_cache(&mut self) {}
+}
+impl<ColType: Binary + PartialOrd + Clone, Row: Binary> UnspecifiedIndex<Row>
+    for SpecificIndexFile<ColType, Row, CachedBinFile<IndexRow<ColType>>>
+{
+    fn check_unique(&mut self, row: &mut Row) -> io::Result<Option<()>> {
+        self.base_check_unique(row)
+    }
+    fn insert(&mut self, index: usize, row: &mut Row) -> io::Result<()> {
+        self.base_insert(index, row)
+    }
+    fn remove(&mut self, index: usize) -> std::io::Result<()> {
+        self.base_remove(index)
+    }
+    fn clear(&mut self) -> io::Result<()> {
+        self.base_clear()
+    }
+    fn clear_cache(&mut self) {
+        self.bin.clear_cache();
     }
 }
 
-pub struct IdAsIndexFile<ColType: Binary + PartialOrd, Row: Binary> {
-    bin: BinFile<Row>,
-    row: PhantomData<ColType>,
+pub struct IdAsIndexFile<ColType: Binary + PartialOrd, Row: Binary, BinFile: BaseBinFile<Row>> {
+    row: PhantomData<(ColType, BinFile)>,
     cmp: Box<fn(&Row, &ColType) -> Option<Ordering>>,
 }
 
-impl<ColType: Binary + PartialOrd, Row: Binary> IdAsIndexFile<ColType, Row> {
-    pub fn new(path: BDPath, cmp: Box<fn(&Row, &ColType) -> Option<Ordering>>) -> io::Result<Self> {
+impl<ColType: Binary + PartialOrd, Row: Binary, BinFile: BaseBinFile<Row>>
+    IdAsIndexFile<ColType, Row, BinFile>
+{
+    pub fn new(cmp: Box<fn(&Row, &ColType) -> Option<Ordering>>) -> io::Result<Self> {
         Ok(Self {
-            bin: BinFile::new(path)?,
             row: PhantomData,
             cmp,
         })
     }
 
-    fn bin_search(&self, mut from: usize, mut to: usize, find: &ColType) -> IndexGet<Row> {
+    pub fn indx(&self, bin: &BinFile, find: &ColType) -> IndexGet<Row> {
+        match bin.len() {
+            Ok(0) => IndexGet::NotFound(0),
+            Ok(len) => self.bin_search(bin, 0, len - 1, find),
+            Err(e) => e.into(),
+        }
+    }
+
+    fn bin_search(
+        &self,
+        bin: &BinFile,
+        mut from: usize,
+        mut to: usize,
+        find: &ColType,
+    ) -> IndexGet<Row> {
         while from <= to {
             let idx = (to - from) / 2 + from;
-            let found = match self.bin.get(idx) {
+            let found = match bin.get(idx) {
                 Ok(found) => found,
                 Err(e) => return e.into(),
             };
             match (self.cmp)(&found, find) {
                 Some(Ordering::Equal) => {
-                    let from = match self.expand_min(idx, find) {
+                    let from = match self.expand_min(bin, idx, find) {
                         Ok(found) => found,
                         Err(e) => return e.into(),
                     };
-                    let to = match self.expand_max(idx, find) {
+                    let to = match self.expand_max(bin, idx, find) {
                         Ok(found) => found,
                         Err(e) => return e.into(),
                     };
 
                     return match (from..=to)
-                        .map(|i| self.bin.get(i))
+                        .map(|i| bin.get(i))
                         .collect::<io::Result<Vec<Row>>>()
                     {
                         Ok(ok) => IndexGet::Found(from, ok),
@@ -200,12 +256,12 @@ impl<ColType: Binary + PartialOrd, Row: Binary> IdAsIndexFile<ColType, Row> {
         IndexGet::InternalError("index bin_search went outside of range".to_owned())
     }
 
-    fn expand_min(&self, mut idx: usize, find: &ColType) -> io::Result<usize> {
+    fn expand_min(&self, bin: &BinFile, mut idx: usize, find: &ColType) -> io::Result<usize> {
         if idx == 0 {
             return Ok(idx);
         }
         idx -= 1;
-        while let Some(Ordering::Equal) = (self.cmp)(&self.bin.get(idx)?, find) {
+        while let Some(Ordering::Equal) = (self.cmp)(&bin.get(idx)?, find) {
             if idx == 0 {
                 return Ok(idx);
             }
@@ -214,29 +270,18 @@ impl<ColType: Binary + PartialOrd, Row: Binary> IdAsIndexFile<ColType, Row> {
         Ok(idx + 1)
     }
 
-    fn expand_max(&self, mut idx: usize, find: &ColType) -> io::Result<usize> {
-        let max = self.bin.len()?;
+    fn expand_max(&self, bin: &BinFile, mut idx: usize, find: &ColType) -> io::Result<usize> {
+        let max = bin.len()?;
         if idx + 1 == max {
             return Ok(idx);
         }
         idx += 1;
-        while let Some(Ordering::Equal) = (self.cmp)(&self.bin.get(idx)?, find) {
+        while let Some(Ordering::Equal) = (self.cmp)(&bin.get(idx)?, find) {
             if idx + 1 == max {
                 return Ok(idx);
             }
             idx += 1;
         }
         Ok(idx - 1)
-    }
-}
-impl<ColType: Binary + PartialOrd, Row: Binary> Index<ColType, Row>
-    for IdAsIndexFile<ColType, Row>
-{
-    fn indx(&self, find: &ColType) -> IndexGet<Row> {
-        match self.bin.len() {
-            Ok(0) => IndexGet::NotFound(0),
-            Ok(len) => self.bin_search(0, len - 1, find),
-            Err(e) => e.into(),
-        }
     }
 }

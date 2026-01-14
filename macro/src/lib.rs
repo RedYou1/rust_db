@@ -83,7 +83,7 @@ pub fn binary_derive(input: TokenStream) -> TokenStream {
 /// # Panics
 /// Will panic if cant parse the input
 #[expect(clippy::too_many_lines)]
-#[proc_macro_derive(Table, attributes(PrimaryKey, Index, Unique))]
+#[proc_macro_derive(Table, attributes(PrimaryKey, Cached, Index, Unique))]
 pub fn table_row_macro(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
 
@@ -149,29 +149,43 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
             self.#field_name.delete(_path)?;
         });
 
-        let index = field.attrs.iter().any(|attr| attr.path().is_ident("Index"));
+        let cached = field
+            .attrs
+            .iter()
+            .any(|attr| attr.path().is_ident("Cached"));
         let unique = field
             .attrs
             .iter()
             .any(|attr| attr.path().is_ident("Unique"));
 
-        if index || unique {
+        if unique || field.attrs.iter().any(|attr| attr.path().is_ident("Index")) {
             let in_name = format!("{field_name}");
+
+            let index_file = if cached {
+                quote! {CachedIndexFile<#field_type, #struct_name>}
+            } else {
+                quote! {IndexFile<#field_type, #struct_name>}
+            };
             get_indexes_statements.push(quote! {
-                Box::new(IndexFile::new(BDPath::new_index(path.clone(), #in_name.to_owned()), Box::new(|row: &#struct_name| &row.#field_name), #unique)?),
+                Box::new(<#index_file>::new(BDPath::new_index(path.clone(), #in_name.to_owned()), Box::new(|row: &#struct_name| &row.#field_name), #unique)?),
             });
 
             let fn_name = Ident::new(format!("get_by_{field_name}").as_str(), Span::call_site());
 
             let i = get_indexes_functions.len();
 
+            let get_gens = if cached {
+                quote! {CachedBinFile<IndexRow<#field_type>>}
+            } else {
+                quote! {BinFile<IndexRow<#field_type>>}
+            };
             if unique {
                 get_indexes_functions_signature.push(quote! {
                     fn #fn_name(&self, col: &#field_type) -> TableGet<Option<#struct_name>>;
                 });
                 get_indexes_functions.push(quote! {
                     fn #fn_name(&self, col: &#field_type) -> TableGet<Option<#struct_name>> {
-                        match &match unsafe{self.get_index_file::<#field_type>(#i)}.indx(col) {
+                        match &match unsafe{self.get_index_file::<#field_type, #get_gens>(#i)}.indx(col) {
                             IndexGet::Found(_, index) => index,
                             IndexGet::NotFound(_) => return TableGet::NotFound,
                             IndexGet::InternalError(e) => return TableGet::InternalError(e),
@@ -195,7 +209,7 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
                 });
                 get_indexes_functions.push(quote! {
                     fn #fn_name(&self, col: &#field_type) -> TableGet<Vec<#struct_name>> {
-                        let index = match unsafe{self.get_index_file::<#field_type>(#i)}.indx(col) {
+                        let index = match unsafe{self.get_index_file::<#field_type, #get_gens>(#i)}.indx(col) {
                             IndexGet::Found(_, index) => index,
                             IndexGet::NotFound(_) => return TableGet::NotFound,
                             IndexGet::InternalError(e) => return TableGet::InternalError(e),
@@ -268,7 +282,7 @@ pub fn table_row_macro(input: TokenStream) -> TokenStream {
         trait #trait_name {
             #(#get_indexes_functions_signature)*
         }
-        impl<BinFile: BaseBinFile<#struct_name>> #trait_name for SpecificTableFile<#struct_name, BinFile> {
+        impl<BinFile2: BaseBinFile<#struct_name>> #trait_name for SpecificTableFile<#struct_name, BinFile2> {
             #(#get_indexes_functions)*
         }
     }

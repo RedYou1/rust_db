@@ -2,7 +2,7 @@ use crate::{
     bd_path::BDPath,
     bin_file::BaseBinFile,
     binary::Binary,
-    index_file::{IdAsIndexFile, Index, IndexFile, IndexGet, UnspecifiedIndex},
+    index_file::{IdAsIndexFile, IndexGet, IndexRow, SpecificIndexFile, UnspecifiedIndex},
     prelude::{BinFile, CachedBinFile},
 };
 pub use rust_db_macro::Table;
@@ -38,7 +38,7 @@ pub type CachedTableFile<Row> = SpecificTableFile<Row, CachedBinFile<Row>>;
 
 pub struct SpecificTableFile<Row: Table, RowBinFile: BaseBinFile<Row>> {
     bin: RowBinFile,
-    id_index: IdAsIndexFile<Row::ID, Row>,
+    id_index: IdAsIndexFile<Row::ID, Row, RowBinFile>,
     other_index: Vec<Box<dyn UnspecifiedIndex<Row>>>,
 }
 
@@ -51,7 +51,7 @@ impl<Row: Table, BinFile: BaseBinFile<Row>> SpecificTableFile<Row, BinFile> {
         Ok(Self {
             other_index: Table::get_indexes(path.dir_path.clone())?,
             bin: BinFile::new(path.clone())?,
-            id_index: IdAsIndexFile::new(path, Box::new(Row::id_cmp))?,
+            id_index: IdAsIndexFile::new(Box::new(Row::id_cmp))?,
         })
     }
 
@@ -60,7 +60,7 @@ impl<Row: Table, BinFile: BaseBinFile<Row>> SpecificTableFile<Row, BinFile> {
     }
 
     pub fn get_by_id(&self, id: &Row::ID) -> TableGet<Row> {
-        match &match self.id_index.indx(id) {
+        match &match self.id_index.indx(&self.bin, id) {
             IndexGet::Found(_, index) => index,
             IndexGet::NotFound(_) => return TableGet::NotFound,
             IndexGet::InternalError(e) => return TableGet::InternalError(e),
@@ -92,7 +92,7 @@ impl<Row: Table, BinFile: BaseBinFile<Row>> SpecificTableFile<Row, BinFile> {
             }
         }
 
-        let index = match self.id_index.indx(data.id()) {
+        let index = match self.id_index.indx(&self.bin, data.id()) {
             IndexGet::Found(_, _) => return Ok(false),
             IndexGet::NotFound(i) => i,
             IndexGet::InternalError(e) => return Err(Error::other(e)),
@@ -107,7 +107,7 @@ impl<Row: Table, BinFile: BaseBinFile<Row>> SpecificTableFile<Row, BinFile> {
     }
 
     pub fn remove(&mut self, id: &Row::ID) -> std::io::Result<()> {
-        let (index, datas) = match self.id_index.indx(id) {
+        let (index, datas) = match self.id_index.indx(&self.bin, id) {
             IndexGet::Found(index, datas) => (index, datas),
             IndexGet::NotFound(_) => return Err(Error::other("remove not found")),
             IndexGet::InternalError(e) => return Err(Error::other(e)),
@@ -139,13 +139,16 @@ impl<Row: Table, BinFile: BaseBinFile<Row>> SpecificTableFile<Row, BinFile> {
     /// # Safety
     /// Don't call it by yourself.
     /// It is used by the Table macro.
-    pub unsafe fn get_index_file<ColType: Binary + PartialOrd>(
+    pub unsafe fn get_index_file<
+        ColType: Binary + PartialOrd,
+        BinFile2: BaseBinFile<IndexRow<ColType>>,
+    >(
         &self,
         index: usize,
-    ) -> &IndexFile<ColType, Row> {
+    ) -> &SpecificIndexFile<ColType, Row, BinFile2> {
         unsafe {
             (self.other_index[index].as_ref() as *const dyn UnspecifiedIndex<Row>
-                as *const IndexFile<ColType, Row>)
+                as *const SpecificIndexFile<ColType, Row, BinFile2>)
                 .as_ref()
                 .expect("downcast of index file in table.")
         }
@@ -153,20 +156,10 @@ impl<Row: Table, BinFile: BaseBinFile<Row>> SpecificTableFile<Row, BinFile> {
 }
 
 impl<Row: Table> CachedTableFile<Row> {
-    pub fn remove_from_cache(&mut self, id: &<Row as Table>::ID) -> TableGet<()> {
-        let (index, datas) = match self.id_index.indx(id) {
-            IndexGet::Found(index, datas) => (index, datas),
-            IndexGet::NotFound(_) => return TableGet::InternalError("remove not found".to_owned()),
-            IndexGet::InternalError(e) => return TableGet::InternalError(e),
-            IndexGet::Err(e) => return TableGet::Err(e),
-        };
-        match &datas[..] {
-            [] => TableGet::InternalError("index returned an empty array".to_owned()),
-            [_] => {
-                self.bin.remove_from_cache(index, Some(1));
-                TableGet::Found(())
-            }
-            _ => TableGet::InternalError("multiple with the same id".to_owned()),
+    pub fn clear_cache(&mut self) {
+        self.bin.clear_cache();
+        for indx in &mut self.other_index {
+            indx.clear_cache();
         }
     }
 }

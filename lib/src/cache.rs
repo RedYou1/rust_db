@@ -204,16 +204,18 @@ impl<Row: Clone> Cache<Row> {
                     }
                 } else {
                     let datas: Vec<Row> = datas.collect();
-                    self.len += datas.len();
-                    if self.cache.len() > i && self.cache[i].from == index + datas.len() {
-                        self.cache[i].from -= datas.len();
+                    let len = datas.len();
+                    assert_ne!(0, len);
+                    self.len += len;
+                    if self.cache.len() > i && self.cache[i].from == index + len {
+                        self.cache[i].from -= len;
                         self.cache[i].data.splice(0..0, datas);
                     } else {
                         self.cache.insert(
                             i,
                             CacheNode {
                                 from: index,
-                                to: index + datas.len() - 1,
+                                to: index + len - 1,
                                 data: datas,
                             },
                         );

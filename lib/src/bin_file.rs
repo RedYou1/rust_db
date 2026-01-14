@@ -44,6 +44,9 @@ impl<Row: Binary> BinFile<Row> {
         }
 
         let len = if let Some(len) = len {
+            if len == 0 {
+                return Err(Error::other("must read at least 1 element"));
+            }
             let len = len * Row::bin_size();
             if (first_byte + len) > file_len {
                 return Err(io::Error::other(format!(

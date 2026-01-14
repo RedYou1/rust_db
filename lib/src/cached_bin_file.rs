@@ -37,6 +37,10 @@ impl<Row: Binary + Clone> CachedBinFile<Row> {
             cache.remove(index, None);
         }
     }
+
+    pub fn clear_cache(&mut self) {
+        self.cache.borrow_mut().clear();
+    }
 }
 
 impl<Row: Binary + Clone> BaseBinFile<Row> for CachedBinFile<Row> {
@@ -84,9 +88,11 @@ impl<Row: Binary + Clone> BaseBinFile<Row> for CachedBinFile<Row> {
                             .expect("chunks return that theirs is data")
                     } else {
                         let data = self.bin.gets(*c.start(), c.len())?;
-                        self.cache
-                            .borrow_mut()
-                            .inserts(*c.start(), data.iter().cloned());
+                        if !data.is_empty() {
+                            self.cache
+                                .borrow_mut()
+                                .inserts(*c.start(), data.iter().cloned());
+                        }
                         data
                     })
                 })
